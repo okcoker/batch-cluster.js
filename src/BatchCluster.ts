@@ -1,4 +1,3 @@
-import child_process from "child_process"
 import EventEmitter from "events"
 import { timers, Timeout } from "./deps.ts"
 import { filterInPlace } from "./Array.ts"
@@ -42,8 +41,8 @@ export interface ChildProcessFactory {
    * appropriate.
    */
   readonly processFactory: () =>
-    | child_process.ChildProcess
-    | Promise<child_process.ChildProcess>
+    | Deno.Process
+    | Promise<Deno.Process>
 }
 
 export type ChildEndCountType = WhyNotReady | "tooMany"

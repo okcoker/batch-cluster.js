@@ -1,4 +1,3 @@
-import child_process from "child_process"
 import { until } from "./Async.ts"
 import { Deferred } from "./Deferred.ts"
 import { kill, pidExists } from "./Pids.ts"
@@ -14,7 +13,7 @@ import {
 
 describe("test.js", () => {
   class Harness {
-    readonly child: child_process.ChildProcess
+    readonly child: Deno.Process
     public output = ""
     constructor() {
       setFailrate(0)

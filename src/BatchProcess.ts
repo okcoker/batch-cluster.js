@@ -1,7 +1,7 @@
-import * as _cp from "child_process"
 import { delay, until } from "./Async.ts"
 import { Deferred } from "./Deferred.ts"
 import { cleanError, tryEach } from "./Error.ts"
+import { Buffer, timers } from "./deps.ts"
 import { InternalBatchProcessOptions } from "./InternalBatchProcessOptions.ts"
 import { Logger } from "./Logger.ts"
 import { map } from "./Object.ts"
@@ -43,40 +43,44 @@ export class BatchProcess {
    * Should be undefined if this instance is not currently processing a task.
    */
   #currentTask: Task | undefined
-  #currentTaskTimeout: NodeJS.Timer | undefined
+  #currentTaskTimeout: number | undefined
 
   constructor(
-    readonly proc: _cp.ChildProcess,
+    readonly proc: Deno.Process,
     readonly opts: InternalBatchProcessOptions
   ) {
     this.name = "BatchProcess(" + proc.pid + ")"
     this.#logger = opts.logger
     // don't let node count the child processes as a reason to stay alive
-    this.proc.unref()
+    this.proc.close()
 
     if (proc.pid == null) {
       throw new Error("BatchProcess.constructor: child process pid is null")
     }
     this.pid = proc.pid
 
-    this.proc.on("error", (err) => this.#onError("proc.error", err))
-    this.proc.on("close", () => this.#onExit("close"))
-    this.proc.on("exit", () => this.#onExit("exit"))
-    this.proc.on("disconnect", () => this.#onExit("disconnect"))
+    // @todo
+    // this.proc.on("error", (err) => this.#onError("proc.error", err))
+    // this.proc.on("close", () => this.#onExit("close"))
+    // this.proc.on("exit", () => this.#onExit("exit"))
+    // this.proc.on("disconnect", () => this.#onExit("disconnect"))
 
     const stdin = this.proc.stdin
     if (stdin == null) throw new Error("Given proc had no stdin")
-    stdin.on("error", (err) => this.#onError("stdin.error", err))
+    // @todo
+    // stdin.on("error", (err) => this.#onError("stdin.error", err))
 
     const stdout = this.proc.stdout
     if (stdout == null) throw new Error("Given proc had no stdout")
-    stdout.on("error", (err) => this.#onError("stdout.error", err))
-    stdout.on("data", (d) => this.#onStdout(d))
+    // @todo
+    // stdout.on("error", (err) => this.#onError("stdout.error", err))
+    // stdout.on("data", (d) => this.#onStdout(d))
 
-    map(this.proc.stderr, (stderr) => {
-      stderr.on("error", (err) => this.#onError("stderr.error", err))
-      stderr.on("data", (err) => this.#onStderr(err))
-    })
+    // @todo
+    // map(this.proc.stderr, (stderr) => {
+    //   stderr.on("error", (err) => this.#onError("stderr.error", err))
+    //   stderr.on("data", (err) => this.#onStderr(err))
+    // })
 
     const startupTask = new Task(opts.versionCommand, SimpleParser)
     this.startupTaskId = startupTask.taskId
@@ -122,7 +126,7 @@ export class BatchProcess {
       return "ending"
     } else if (this.#healthCheckFailures > 0) {
       return "unhealthy"
-    } else if (this.proc.stdin == null || this.proc.stdin.destroyed) {
+    } else if (this.proc.stdin == null) {
       return "closed"
     } else if (
       this.opts.maxTasksPerProcess > 0 &&
@@ -214,11 +218,11 @@ export class BatchProcess {
 
   // This must not be async, or new instances aren't started as busy (until the
   // startup task is complete)
-  execTask(task: Task): boolean {
+  execTask(task: Task): Promise<boolean> {
     const why = this.whyNotReady
     if (why != null) {
       // console.log(`execTask(): ${this.pid} not ready: ${why}`)
-      return false
+      return Promise.resolve(false)
     }
 
     if (
@@ -238,14 +242,14 @@ export class BatchProcess {
           this.#lastHealthCheck = Date.now()
         })
       this.#execTask(t)
-      return false
+      return Promise.resolve(false)
     }
 
     // console.log("running " + task + " on " + this.pid)
     return this.#execTask(task)
   }
 
-  #execTask(task: Task): boolean {
+  async #execTask(task: Task): Promise<boolean> {
     if (this.#ending) return false
 
     this.#taskCount++
@@ -290,15 +294,11 @@ export class BatchProcess {
     try {
       task.onStart(this.opts)
       const stdin = this.proc?.stdin
-      if (stdin == null || stdin.destroyed) {
+      if (stdin == null) {
         task.reject(new Error("proc.stdin unexpectedly closed"))
         return false
       } else {
-        stdin.write(cmd, (err) => {
-          if (err != null) {
-            task.reject(err)
-          }
-        })
+        await stdin.write(new TextEncoder().encode(cmd))
         return true
       }
     } catch (err) {
@@ -361,10 +361,10 @@ export class BatchProcess {
 
     // proc cleanup:
     tryEach([
-      () => mapNotDestroyed(this.proc.stdin, (ea) => ea.end(cmd)),
-      () => mapNotDestroyed(this.proc.stdout, (ea) => ea.destroy()),
-      () => mapNotDestroyed(this.proc.stderr, (ea) => ea.destroy()),
-      () => this.proc.disconnect(),
+      () => mapNotDestroyed(this.proc.stdin, (ea) => ea.close()),
+      () => mapNotDestroyed(this.proc.stdout, (ea) => ea.close()),
+      () => mapNotDestroyed(this.proc.stderr, (ea) => ea.close()),
+      () => this.proc.close(),
     ])
 
     if (
@@ -510,7 +510,7 @@ export class BatchProcess {
   }
 
   #clearCurrentTask(task?: Task) {
-    setImmediate(() => this.opts.observer.emit("idle"))
+    timers.setImmediate(() => this.opts.observer.emit("idle"))
     if (task != null && task.taskId !== this.#currentTask?.taskId) return
     map(this.#currentTaskTimeout, (ea) => clearTimeout(ea))
     this.#currentTaskTimeout = undefined

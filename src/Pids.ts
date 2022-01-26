@@ -1,4 +1,3 @@
-import child_process from "child_process"
 import { map } from "./Object.ts"
 import { isWin } from "./Platform.ts"
 
@@ -39,7 +38,7 @@ $ ps -p 32183
  * @returns {Promise<boolean>} true if the given process id is in the local
  * process table. The PID may be paused or a zombie, though.
  */
-export function pidExists(pid: number | null | undefined): Promise<boolean> {
+export async function pidExists(pid: number | null | undefined): Promise<boolean> {
   if (pid == null) return Promise.resolve(false)
   const needle = safePid(pid)
   const cmd = isWin ? "tasklist" : "ps"
@@ -54,22 +53,34 @@ export function pidExists(pid: number | null | undefined): Promise<boolean> {
     : // linux has "quick" mode (-q) but mac doesn't. We add the ",1" to avoid ps
       // returning exit code 1, which generates an extraneous Error.
       [["-p", needle + ",1"]]
-  return new Promise((resolve) => {
-    child_process.execFile(
+
+    const p = Deno.run({
       cmd,
-      ...(args as any),
-      (error: Error | null, stdout: string) => {
-        const result =
-          error == null &&
-          new RegExp(
-            isWin ? '"' + needle + '"' : "^\\s*" + needle + "\\b",
-            // The posix regex pattern needs multiline support:
-            "m"
-          ).exec(String(stdout).trim()) != null
-        resolve(result)
-      }
-    )
-  })
+      ...(args as any)
+    })
+
+    const { code } = await p.status();
+
+    // (error: Error | null, stdout: string) => {
+    //   const result =
+    //     error == null &&
+    //     new RegExp(
+    //       isWin ? '"' + needle + '"' : "^\\s*" + needle + "\\b",
+    //       // The posix regex pattern needs multiline support:
+    //       "m"
+    //     ).exec(String(stdout).trim()) != null
+    //   resolve(result)
+    // }
+
+    const rawOutput = await p.output();
+    // @todo do we check rawError instead?
+    // const rawError = await p.stderrOutput();
+
+    return code === 0 && new RegExp(
+      isWin ? '"' + needle + '"' : "^\\s*" + needle + "\\b",
+      // The posix regex pattern needs multiline support:
+      "m"
+    ).exec(String(rawOutput).trim()) != null
 }
 
 const winRe = /^".+?","(\d+)"/
@@ -79,29 +90,25 @@ const posixRe = /^\s*(\d+)/
  * @export
  * @returns {Promise<number[]>} all the Process IDs in the process table.
  */
-export function pids(): Promise<number[]> {
-  return new Promise((resolve, reject) => {
-    child_process.execFile(
-      isWin ? "tasklist" : "ps",
-      // NoHeader, FOrmat CSV
-      isWin ? ["/NH", "/FO", "CSV"] : ["-e"],
-      (error: Error | null, stdout: string, stderr: string) => {
-        if (error != null) {
-          reject(error)
-        } else if (("" + stderr).trim().length > 0) {
-          reject(new Error(stderr))
-        } else
-          resolve(
-            ("" + stdout)
-              .trim()
-              .split(/[\n\r]+/)
-              .map((ea) => ea.match(isWin ? winRe : posixRe))
-              .map((m) => map(m?.[0], parseInt))
-              .filter((ea) => ea != null) as number[]
-          )
-      }
-    )
-  })
+export async function pids(): Promise<number[]> {
+    const p = Deno.run({
+      cmd: [isWin ? "tasklist" : "ps", ...(isWin ? ["/NH", "/FO", "CSV"] : ["-e"])]
+    })
+    const { code } = await p.status();
+    const rawOutput = await p.output();
+    const rawError = await p.stderrOutput();
+
+    if (code !== 0 || ("" + rawError).trim().length > 0) {
+      const errorString = new TextDecoder().decode(rawError);
+      throw new Error(errorString);
+    }
+
+    return new TextDecoder().decode(rawOutput)
+          .trim()
+          .split(/[\n\r]+/)
+          .map((ea) => ea.match(isWin ? winRe : posixRe))
+          .map((m) => map(m?.[0], parseInt))
+          .filter((ea) => ea != null) as number[]
 }
 
 /**
@@ -124,7 +131,7 @@ export function kill(pid: number | null | undefined, force = false): void {
     if (force) {
       args.push("/F")
     }
-    child_process.execFile("taskkill", args)
+    Deno.run({ cmd: ["taskkill", ...args] })
   } else {
     try {
       Deno.kill(pid, force ? "SIGKILL" : "SIGTERM")

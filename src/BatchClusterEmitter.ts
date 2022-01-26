@@ -1,4 +1,3 @@
-import _cp from "child_process"
 import { BatchProcess } from "./BatchProcess.ts"
 import { Task } from "./Task.ts"
 
@@ -38,12 +37,12 @@ export interface BatchClusterEvents {
   /**
    * Emitted when a child process has started
    */
-  childStart: (childProcess: _cp.ChildProcess) => void
+  childStart: (childProcess: Deno.Process) => void
 
   /**
    * Emitted when a child process has exitted
    */
-  childExit: (childProcess: _cp.ChildProcess) => void
+  childExit: (childProcess: Deno.Process) => void
 
   /**
    * Emitted when a child process has an error when spawning
