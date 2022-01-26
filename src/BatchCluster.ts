@@ -1,5 +1,4 @@
-import EventEmitter from "events"
-import { timers, Timeout } from "./deps.ts"
+import { timers, Timeout, EventEmitter } from "./deps.ts"
 import { filterInPlace } from "./Array.ts"
 import { BatchClusterEmitter, BatchClusterEvents } from "./BatchClusterEmitter.ts"
 import {
@@ -345,18 +344,18 @@ export class BatchCluster {
   }
 
   // NOT ASYNC: updates internal state.
-  #execNextTask(): boolean {
-    if (this.#tasks.length === 0 || this.ended) return false
+  #execNextTask(): Promise<boolean> {
+    if (this.#tasks.length === 0 || this.ended) return Promise.resolve(false)
     const readyProc = this.#procs.find((ea) => ea.ready)
     // no procs are idle and healthy :(
     if (readyProc == null) {
-      return false
+      return Promise.resolve(false)
     }
 
     const task = this.#tasks.shift()
     if (task == null) {
       this.emitter.emit("internalError", new Error("unexpected null task"))
-      return false
+      return Promise.resolve(false)
     }
 
     const submitted = readyProc.execTask(task)
@@ -368,6 +367,7 @@ export class BatchCluster {
       // we actually can't submit the task:
       return this.#execNextTask()
     }
+
     return submitted
   }
 
