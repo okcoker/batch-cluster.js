@@ -1,5 +1,4 @@
 import child_process from "child_process"
-import process from "process"
 import { map } from "./Object.ts"
 import { isWin } from "./Platform.ts"
 
@@ -116,7 +115,7 @@ export function pids(): Promise<number[]> {
 export function kill(pid: number | null | undefined, force = false): void {
   if (pid == null) return
 
-  if (pid === process.pid || pid === process.ppid) {
+  if (pid === Deno.pid || pid === Deno.ppid) {
     throw new Error("cannot self-terminate")
   }
 
@@ -128,7 +127,7 @@ export function kill(pid: number | null | undefined, force = false): void {
     child_process.execFile("taskkill", args)
   } else {
     try {
-      process.kill(pid, force ? "SIGKILL" : "SIGTERM")
+      Deno.kill(pid, force ? "SIGKILL" : "SIGTERM")
     } catch (err) {
       if (!String(err).includes("ESRCH")) throw err
     }

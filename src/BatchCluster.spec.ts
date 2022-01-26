@@ -1,4 +1,3 @@
-import process from "process"
 import util, { inspect } from "util"
 import { filterInPlace } from "./Array.ts"
 import { delay, until } from "./Async.ts"
@@ -24,7 +23,7 @@ import {
   times,
 } from "./_chai.spec"
 
-const isCI = process.env.CI === "1"
+const isCI = Deno.env.get('CI') === "1"
 const tk = require("timekeeper")
 
 describe("BatchCluster", function () {

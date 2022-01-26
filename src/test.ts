@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import process from "process"
 import { delay } from "./Async.ts"
 import { Mutex } from "./Mutex.ts"
+import { seedrandom, split2 } from "./deps.ts"
 
 /**
  * This is a script written to behave similarly to ExifTool or
@@ -10,22 +10,14 @@ import { Mutex } from "./Mutex.ts"
  * The complexity comes from introducing predictable flakiness.
  */
 
-const newline = process.env.newline === "crlf" ? "\r\n" : "\n"
+const newline = Deno.env.get('newline') === "crlf" ? "\r\n" : "\n"
 
-function write(s: string): boolean {
-  return process.stdout.write(s + newline)
+async function write(s: string): Promise<boolean> {
+  await Deno.stdout.write(new TextEncoder().encode(s + newline));
+  return true;
 }
 
-const ignoreExit = process.env.ignoreExit === "1"
-
-if (ignoreExit) {
-  process.addListener("SIGINT", () => {
-    write("ignoring SIGINT")
-  })
-  process.addListener("SIGTERM", () => {
-    write("ignoring SIGTERM")
-  })
-}
+const ignoreExit = Deno.env.get('ignoreExit') === "1"
 
 function toF(s: string | undefined) {
   if (s == null) return
@@ -33,19 +25,19 @@ function toF(s: string | undefined) {
   return isNaN(f) ? undefined : f
 }
 
-const failrate = toF(process.env.failrate) ?? 0
+const failrate = toF(Deno.env.get('failrate')) ?? 0
 const rng =
-  process.env.rngseed != null
-    ? require("seedrandom")(process.env.rngseed)
+  Deno.env.get('rngseed') != null
+    ? seedrandom(Deno.env.get('rngseed'))
     : Math.random
 
 async function onLine(line: string): Promise<void> {
   // write(`# ${_p.pid} onLine(${line.trim()}) (newline = ${process.env.newline})`)
   const r = rng()
   if (r < failrate) {
-    if (process.env.unluckyfail === "1") {
+    if (Deno.env.get('unluckyfail') === "1") {
       // Make sure streams get debounced:
-      write("FAIL")
+      await write("FAIL")
       await delay(1)
     }
     console.error(
@@ -54,7 +46,7 @@ async function onLine(line: string): Promise<void> {
         ", failrate: " +
         failrate.toFixed(2) +
         ", seed: " +
-        process.env.rngseed
+        Deno.env.get('rngseed')
     )
 
     return
@@ -102,7 +94,7 @@ async function onLine(line: string): Promise<void> {
       case "sleep": {
         const millis = parseInt(tokens[0] ?? "100")
         await delay(millis)
-        write(JSON.stringify({ slept: millis, pid: process.pid }))
+        write(JSON.stringify({ slept: millis, pid: Deno.pid }))
         write("PASS")
         break
       }
@@ -117,7 +109,7 @@ async function onLine(line: string): Promise<void> {
         if (ignoreExit) {
           write("ignoreExit is set")
         } else {
-          process.exit(0)
+          Deno.exit(0)
         }
         break
       }
@@ -141,8 +133,9 @@ async function onLine(line: string): Promise<void> {
   return
 }
 
-const m = new Mutex()
+// @todo
+// const m = new Mutex()
 
-process.stdin
-  .pipe(require("split2")())
-  .on("data", (ea: string) => m.serial(() => onLine(ea)))
+// process.stdin
+//   .pipe(split2())
+//   .on("data", (ea: string) => m.serial(() => onLine(ea)))

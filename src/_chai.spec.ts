@@ -1,13 +1,12 @@
 import { expect, use } from "chai"
-import child_process from "child_process"
-import path from "path"
-import process from "process"
+import { path } from "./deps.ts"
 import { Log, logger, setLogger } from "./Logger.ts"
 import { orElse } from "./Object.ts"
 import { Parser } from "./Parser.ts"
 import { pids } from "./Pids.ts"
 import { notBlank } from "./String.ts"
 
+const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
 use(require("chai-string"))
 use(require("chai-as-promised"))
 use(require("chai-withintoleranceof"))
@@ -28,7 +27,7 @@ setLogger(
           error: console.error,
           // tslint:enable: no-unbound-method
         },
-        (process.env.LOG as any) ?? "error"
+        (Deno.env.get('LOG') as any) ?? "error"
       )
     )
   )
@@ -39,11 +38,6 @@ export const parserErrors: string[] = []
 export const unhandledRejections: Error[] = []
 
 beforeEach(() => (parserErrors.length = 0))
-
-process.on("unhandledRejection", (reason: any) => {
-  console.error("unhandledRejection:", reason.stack ?? reason)
-  unhandledRejections.push(reason)
-})
 
 afterEach(() => expect(unhandledRejections).to.eql([]))
 
@@ -95,7 +89,7 @@ declare namespace Chai {
   }
 }
 
-export const procs: child_process.ChildProcess[] = []
+export const procs: Deno.Process[] = []
 
 export function testPids(): number[] {
   return procs.map((proc) => proc.pid).filter((ea) => ea != null) as number[]
@@ -178,19 +172,16 @@ beforeEach(() => {
 })
 
 export const processFactory = () => {
-  const proc = child_process.spawn(
-    process.execPath,
-    [path.join(__dirname, "test.js")],
-    {
-      env: {
-        rngseed: rngseed(),
-        failrate,
-        newline,
-        ignoreExit,
-        unluckyfail,
-      },
-    }
-  )
+  const proc = Deno.run({
+    cmd: [Deno.execPath(), path.join(__dirname, "test.js")],
+    env: {
+      rngseed: rngseed(),
+      failrate,
+      newline,
+      ignoreExit,
+      unluckyfail,
+    },
+  })
   procs.push(proc)
   return proc
 }

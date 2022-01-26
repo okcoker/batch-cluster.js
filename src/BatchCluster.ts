@@ -1,7 +1,6 @@
 import child_process from "child_process"
 import EventEmitter from "events"
-import process from "process"
-import timers from "timers"
+import { timers, Timeout } from "./deps.ts"
 import { filterInPlace } from "./Array.ts"
 import { BatchClusterEmitter, BatchClusterEvents } from "./BatchClusterEmitter.ts"
 import {
@@ -67,7 +66,7 @@ export class BatchCluster {
   #lastSpawnedProcTime = 0
   #lastPidsCheckTime = Date.now()
   readonly #tasks: Task[] = []
-  #onIdleInterval: NodeJS.Timer | undefined
+  #onIdleInterval: Timeout | undefined
   readonly #startErrorRate = new Rate()
   #spawnedProcs = 0
   #endPromise?: Deferred<void>
@@ -116,8 +115,9 @@ export class BatchCluster {
     }
     this.#logger = this.options.logger
 
-    process.once("beforeExit", this.#beforeExitListener)
-    process.once("exit", this.#exitListener)
+    self.addEventListener("beforeunload", this.#beforeExitListener);
+
+    self.addEventListener("unload", this.#exitListener);
   }
 
   /**
@@ -131,8 +131,8 @@ export class BatchCluster {
    */
   readonly off = this.emitter.off.bind(this.emitter)
 
-  readonly #beforeExitListener = () => this.end(true)
-  readonly #exitListener = () => this.end(false)
+  readonly #beforeExitListener: EventListenerOrEventListenerObject = () => { this.end(true) }
+  readonly #exitListener: EventListenerOrEventListenerObject = () => { this.end(false) }
 
   get ended(): boolean {
     return this.#endPromise != null
@@ -149,8 +149,8 @@ export class BatchCluster {
       this.emitter.emit("beforeEnd")
       map(this.#onIdleInterval, timers.clearInterval)
       this.#onIdleInterval = undefined
-      process.removeListener("beforeExit", this.#beforeExitListener)
-      process.removeListener("exit", this.#exitListener)
+      self.removeEventListener("beforeunload", this.#beforeExitListener)
+      self.removeEventListener("unload", this.#exitListener)
       this.#endPromise = new Deferred<void>().observe(
         this.closeChildProcesses(gracefully)
           .catch((err) => {
@@ -178,7 +178,7 @@ export class BatchCluster {
       )
     }
     this.#tasks.push(task)
-    setImmediate(() => this.onIdle())
+    timers.setImmediate(() => this.onIdle())
     return task.promise.finally(() => this.onIdle())
   }
 
