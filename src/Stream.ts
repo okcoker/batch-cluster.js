@@ -1,4 +1,4 @@
-import stream from "stream"
+import { stream } from "./deps.ts"
 
 export function end(
   endable: stream.Writable,

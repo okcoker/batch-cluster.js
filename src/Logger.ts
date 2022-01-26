@@ -1,4 +1,4 @@
-import util from "util"
+import { util } from "./deps.ts"
 import { map } from "./Object.ts"
 import { notBlank } from "./String.ts"
 
@@ -23,7 +23,7 @@ export const LogLevels: (keyof Logger)[] = [
   "error",
 ]
 
-const _debuglog = util.debuglog("batch-cluster")
+const _debuglog = util.debuglog("batch-cluster", () => {})
 
 const noop = () => undefined
 
