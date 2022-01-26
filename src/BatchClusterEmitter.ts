@@ -1,6 +1,6 @@
 import _cp from "child_process"
-import { BatchProcess } from "./BatchProcess"
-import { Task } from "./Task"
+import { BatchProcess } from "./BatchProcess.ts"
+import { Task } from "./Task.ts"
 
 type Args<T> = T extends (...args: infer A) => void ? A : never
 

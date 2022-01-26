@@ -1,6 +1,6 @@
 import util from "util"
-import { map } from "./Object"
-import { notBlank } from "./String"
+import { map } from "./Object.ts"
+import { notBlank } from "./String.ts"
 
 type LogFunc = (message: string, ...optionalParams: any[]) => void
 

@@ -1,7 +1,7 @@
 import child_process from "child_process"
 import process from "process"
-import { map } from "./Object"
-import { isWin } from "./Platform"
+import { map } from "./Object.ts"
+import { isWin } from "./Platform.ts"
 
 function safePid(pid: number) {
   if (typeof pid !== "number" || pid < 0) {
@@ -18,16 +18,16 @@ Windows 10:
 >tasklist /NH /FO "CSV" /FI "PID eq 15524"
 INFO: No tasks are running which match the specified criteria.
 
->tasklist /NH /FO "CSV" /FI "PID eq 11968" 
+>tasklist /NH /FO "CSV" /FI "PID eq 11968"
 "bash.exe","11968","Console","1","5,340 K"
 
 Linux:
 
-$ ps -p 20242 
+$ ps -p 20242
   PID TTY          TIME CMD
 20242 pts/3    00:00:00 bash
 
-Mac: 
+Mac:
 
 $ ps -p 32183
   PID TTY           TIME CMD

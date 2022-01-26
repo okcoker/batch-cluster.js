@@ -1,5 +1,5 @@
-import { expect, times } from "./_chai.spec"
-import { Rate } from "./Rate"
+import { expect, times } from "./_chai.spec.ts"
+import { Rate } from "./Rate.ts"
 
 const tk = require("timekeeper")
 

@@ -1,13 +1,13 @@
 import process from "process"
 import util, { inspect } from "util"
-import { filterInPlace } from "./Array"
-import { delay, until } from "./Async"
-import { BatchCluster } from "./BatchCluster"
-import { BatchClusterOptions } from "./BatchClusterOptions"
-import { map, orElse } from "./Object"
-import { isWin } from "./Platform"
-import { toS } from "./String"
-import { Task } from "./Task"
+import { filterInPlace } from "./Array.ts"
+import { delay, until } from "./Async.ts"
+import { BatchCluster } from "./BatchCluster.ts"
+import { BatchClusterOptions } from "./BatchClusterOptions.ts"
+import { map, orElse } from "./Object.ts"
+import { isWin } from "./Platform.ts"
+import { toS } from "./String.ts"
+import { Task } from "./Task.ts"
 import {
   currentTestPids,
   expect,

@@ -1,5 +1,5 @@
-import { filterInPlace } from "./Array"
-import { Deferred } from "./Deferred"
+import { filterInPlace } from "./Array.ts"
+import { Deferred } from "./Deferred.ts"
 
 /**
  * Aggregate promises efficiently

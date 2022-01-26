@@ -1,14 +1,14 @@
 import child_process from "child_process"
-import { until } from "./Async"
-import { Deferred } from "./Deferred"
-import { kill, pidExists } from "./Pids"
+import { until } from "./Async.ts"
+import { Deferred } from "./Deferred.ts"
+import { kill, pidExists } from "./Pids.ts"
 import {
   expect,
   processFactory,
   setFailrate,
   setIgnoreExit,
   setRngseed,
-} from "./_chai.spec"
+} from "./_chai.spec.ts"
 
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 

@@ -1,4 +1,4 @@
-import { notBlank } from "./String"
+import { notBlank } from "./String.ts"
 
 /**
  * Parser implementations convert stdout and stderr from the underlying child

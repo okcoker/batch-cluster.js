@@ -1,4 +1,4 @@
-import { isFunction } from "./Object"
+import { isFunction } from "./Object.ts"
 
 export function blank(s: string | Buffer | undefined): boolean {
   return s == null || String(s).trim().length === 0

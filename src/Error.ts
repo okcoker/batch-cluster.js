@@ -1,4 +1,4 @@
-import { blank, toS } from "./String"
+import { blank, toS } from "./String.ts"
 
 /**
  * When we wrap errors, an Error always prefixes the toString() and stack with

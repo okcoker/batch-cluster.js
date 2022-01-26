@@ -1,10 +1,10 @@
-import { ChildProcessFactory } from "./BatchCluster"
-import { BatchClusterEmitter } from "./BatchClusterEmitter"
-import { BatchProcessOptions } from "./BatchProcessOptions"
-import { InternalBatchProcessOptions } from "./InternalBatchProcessOptions"
-import { logger, Logger } from "./Logger"
-import { isLinux } from "./Platform"
-import { blank, toS } from "./String"
+import { ChildProcessFactory } from "./BatchCluster.ts"
+import { BatchClusterEmitter } from "./BatchClusterEmitter.ts"
+import { BatchProcessOptions } from "./BatchProcessOptions.ts"
+import { InternalBatchProcessOptions } from "./InternalBatchProcessOptions.ts"
+import { logger, Logger } from "./Logger.ts"
+import { isLinux } from "./Platform.ts"
+import { blank, toS } from "./String.ts"
 
 const secondMs = 1000
 const minuteMs = 60 * 1000

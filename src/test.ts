@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import process from "process"
-import { delay } from "./Async"
-import { Mutex } from "./Mutex"
+import { delay } from "./Async.ts"
+import { Mutex } from "./Mutex.ts"
 
 /**
  * This is a script written to behave similarly to ExifTool or

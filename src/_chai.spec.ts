@@ -1,18 +1,12 @@
-try {
-  require("source-map-support").install()
-} catch {
-  //
-}
-
 import { expect, use } from "chai"
 import child_process from "child_process"
 import path from "path"
 import process from "process"
-import { Log, logger, setLogger } from "./Logger"
-import { orElse } from "./Object"
-import { Parser } from "./Parser"
-import { pids } from "./Pids"
-import { notBlank } from "./String"
+import { Log, logger, setLogger } from "./Logger.ts"
+import { orElse } from "./Object.ts"
+import { Parser } from "./Parser.ts"
+import { pids } from "./Pids.ts"
+import { notBlank } from "./String.ts"
 
 use(require("chai-string"))
 use(require("chai-as-promised"))

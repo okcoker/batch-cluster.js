@@ -1,5 +1,5 @@
-import { BatchClusterOptions, WithObserver } from "./BatchClusterOptions"
-import { BatchProcessOptions } from "./BatchProcessOptions"
+import { BatchClusterOptions, WithObserver } from "./BatchClusterOptions.ts"
+import { BatchProcessOptions } from "./BatchProcessOptions.ts"
 
 export interface InternalBatchProcessOptions
   extends BatchProcessOptions,
