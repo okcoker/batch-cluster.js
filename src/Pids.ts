@@ -55,8 +55,8 @@ export async function pidExists(pid: number | null | undefined): Promise<boolean
       [["-p", needle + ",1"]]
 
     const p = Deno.run({
-      cmd,
-      ...(args as any)
+      cmd: [cmd, ...args[0] as string[]],
+      ...(args[1] || [])
     })
 
     const { code } = await p.status();

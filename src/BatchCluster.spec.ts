@@ -1,4 +1,3 @@
-import util, { inspect } from "util"
 import { filterInPlace } from "./Array.ts"
 import { delay, until } from "./Async.ts"
 import { BatchCluster } from "./BatchCluster.ts"
@@ -21,16 +20,18 @@ import {
   sortNumeric,
   testPids,
   times,
-} from "./_chai.spec"
+  timekeeper as tk,
+  afterEach, beforeEach, describe, it
+} from "./_chai.spec.ts"
 
 const isCI = Deno.env.get('CI') === "1"
-const tk = require("timekeeper")
 
 describe("BatchCluster", function () {
   if (isCI)
     beforeEach(function () {
       // child process forking in CI is flaky.
-      this.retries(3)
+      // @todo check on this later
+      // this.retries(3)
     })
 
   const ErrorPrefix = "ERROR: "
@@ -105,7 +106,7 @@ describe("BatchCluster", function () {
       Math.ceil(expectedTaskCount * 3) // because flaky retries
     )
     events.runtimeMs.forEach((ea) =>
-      expect(ea).to.be.within(0, 5000, inspect({ runtimeMs: events.runtimeMs }))
+      expect(ea).to.be.within(0, 5000, JSON.stringify({ runtimeMs: events.runtimeMs }))
     )
   }
 
@@ -165,7 +166,7 @@ describe("BatchCluster", function () {
     expect(isShutdown).to.eql(true)
     expect(endPromiseResolved).to.eql(true)
     expect(bc.end(true).settled).to.eql(true)
-    expect(bc.internalErrorCount).to.eql(0, inspect({ internalErrors }))
+    expect(bc.internalErrorCount).to.eql(0, JSON.stringify({ internalErrors }))
     return
   }
 
@@ -233,9 +234,8 @@ describe("BatchCluster", function () {
       for (const ignoreExit of [true, false]) {
         for (const healthcheck of [false, true]) {
           describe(
-            util.inspect(
-              { newline, maxProcs, ignoreExit, healthcheck },
-              { colors: true, breakLength: 100 }
+            JSON.stringify(
+              { newline, maxProcs, ignoreExit, healthcheck }
             ),
             function () {
               let bc: BatchCluster
@@ -304,7 +304,8 @@ describe("BatchCluster", function () {
                   opts.maxTasksPerProcess +
                   " before recycling",
                 async function () {
-                  this.retries(2) // because we're flaky...
+                  // @todo check on this later
+                  // this.retries(2) // because we're flaky...
                   // make sure we hit an EUNLUCKY:
                   setFailrate(60) // 60%
                   let expectedResultCount = 0
@@ -394,7 +395,9 @@ describe("BatchCluster", function () {
                 } else if (maxProcs === 1 && errorResults.length === 0) {
                   console.warn("(all processes were unlucky)")
                   expectedTaskCount = -1
-                  return this.skip()
+                  // @todo we shouldn't be needing to skip tests
+                  // return this.skip()
+                  return;
                 } else {
                   expect(
                     errorResults.some((ea) => String(ea).includes("nonsense"))
@@ -512,9 +515,8 @@ describe("BatchCluster", function () {
       },
     ]) {
       it(
-        util.inspect(
-          { minDelayBetweenSpawnMillis },
-          { colors: false, breakLength: 100 }
+        JSON.stringify(
+          { minDelayBetweenSpawnMillis }
         ),
         async function () {
           setFailrate(0)
@@ -724,7 +726,11 @@ describe("BatchCluster", function () {
     ]) {
       it("(" + maxProcAgeMillis + "): " + ctx, async function () {
         // TODO: look into why this fails in CI on windows
-        if (isWin && isCI) return this.skip()
+        if (isWin && isCI) {
+          // @todo we probably shouldnt be skipping
+          // return this.skip()
+          return;
+        }
         const start = Date.now()
         tk.freeze(start)
         setFailrate(0)

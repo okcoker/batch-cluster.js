@@ -1,4 +1,3 @@
-import { util } from "./deps.ts"
 import { map } from "./Object.ts"
 import { notBlank } from "./String.ts"
 
@@ -23,7 +22,15 @@ export const LogLevels: (keyof Logger)[] = [
   "error",
 ]
 
-const _debuglog = util.debuglog("batch-cluster", () => {})
+// const _debuglog = util.debuglog("batch-cluster", () => {})
+const _debuglog = () => {
+  const debugValue = Deno.env.get('NODE_DEBUG');
+  if (!debugValue || !debugValue.includes('batch-cluster')) {
+    return () => {}
+  }
+
+  return console.log;
+}
 
 const noop = () => undefined
 

@@ -1,7 +1,5 @@
-import { expect, times } from "./_chai.spec.ts"
+import { expect, times, timekeeper as tk, describe, it, beforeEach, afterAll as after } from "./_chai.spec.ts"
 import { Rate } from "./Rate.ts"
-
-const tk = require("timekeeper")
 
 describe("Rate", () => {
   const now = Date.now()

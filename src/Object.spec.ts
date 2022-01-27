@@ -1,4 +1,4 @@
-import { expect } from "./_chai.spec.ts"
+import { expect, describe, it } from "./_chai.spec.ts"
 import { map } from "./Object.ts"
 
 describe("Object", () => {

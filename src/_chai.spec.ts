@@ -1,4 +1,10 @@
-import { expect, use } from "chai"
+import { expect, use } from "https://cdn.skypack.dev/chai@4.3.4?dts";
+import * as timekeeper from "https://cdn.skypack.dev/timekeeper@2.2.0?dts";
+import { default as chaiString } from "https://cdn.skypack.dev/chai-string@1.5.0?dts";
+import { default as chaiAsPromised } from "https://cdn.skypack.dev/chai-as-promised@7.1.1?dts";
+import { default as chaiWithinTolerance } from "https://cdn.skypack.dev/chai-withintoleranceof@1.0.1?dts";
+import { TestSuite, test, afterEach, beforeEach, afterAll, beforeAll, describe, it, } from "https://deno.land/x/test_suite@0.9.5/mod.ts";
+import { assertEquals } from "https://deno.land/std@0.122.0/testing/asserts.ts"
 import { path } from "./deps.ts"
 import { Log, logger, setLogger } from "./Logger.ts"
 import { orElse } from "./Object.ts"
@@ -7,11 +13,10 @@ import { pids } from "./Pids.ts"
 import { notBlank } from "./String.ts"
 
 const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
-use(require("chai-string"))
-use(require("chai-as-promised"))
-use(require("chai-withintoleranceof"))
 
-export { expect } from "chai"
+use(chaiString)
+use(chaiAsPromised)
+use(chaiWithinTolerance)
 
 // Tests should be quiet unless LOG is set
 setLogger(
@@ -36,10 +41,6 @@ setLogger(
 export const parserErrors: string[] = []
 
 export const unhandledRejections: Error[] = []
-
-beforeEach(() => (parserErrors.length = 0))
-
-afterEach(() => expect(unhandledRejections).to.eql([]))
 
 export const parser: Parser<string> = (
   stdout: string,
@@ -163,13 +164,40 @@ export function setIgnoreExit(ignore = false) {
   ignoreExit = ignore ? "1" : "0"
 }
 
-beforeEach(() => {
-  setFailrate()
-  setUnluckyFail()
-  setNewline()
-  setIgnoreExit()
-  setRngseed()
-})
+type TestFunction = () => void
+type CreateSuiteOptions = {
+    beforeEach?: TestFunction;
+    afterEach?: TestFunction;
+    beforeAll?: TestFunction;
+    afterAll?: TestFunction;
+}
+
+export function createTestSuite<T>(name: string, options: CreateSuiteOptions = {}): TestSuite<T> {
+  return new TestSuite({
+    name: name,
+    beforeAll() {
+      options.afterAll?.()
+    },
+
+    beforeEach() {
+        parserErrors.length = 0;
+        setFailrate()
+        setUnluckyFail()
+        setNewline()
+        setIgnoreExit()
+        setRngseed()
+        options.beforeEach?.()
+    },
+    afterEach() {
+      expect(unhandledRejections).to.eql([])
+      options.afterEach?.()
+    },
+
+    afterAll() {
+      options.afterAll?.()
+    }
+  });
+}
 
 export const processFactory = () => {
   const proc = Deno.run({
@@ -185,3 +213,5 @@ export const processFactory = () => {
   procs.push(proc)
   return proc
 }
+
+export { expect, test, assertEquals, timekeeper, afterEach, beforeEach, describe, afterAll, beforeAll, it }

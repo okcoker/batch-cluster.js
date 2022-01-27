@@ -52,7 +52,10 @@ export class BatchProcess {
     this.name = "BatchProcess(" + proc.pid + ")"
     this.#logger = opts.logger
     // don't let node count the child processes as a reason to stay alive
-    this.proc.close()
+
+    // @todo follow up on this to see if its needed
+    // https://github.com/denoland/deno/pull/12889/files
+    // this.proc.unref()
 
     if (proc.pid == null) {
       throw new Error("BatchProcess.constructor: child process pid is null")
@@ -212,17 +215,17 @@ export class BatchProcess {
     return this.#dead || (await this.notRunning())
   }
 
-  async notEnded(): Promise<boolean> {
+  notEnded(): Promise<boolean> {
     return this.ended().then((ea) => !ea)
   }
 
   // This must not be async, or new instances aren't started as busy (until the
   // startup task is complete)
-  execTask(task: Task): Promise<boolean> {
+  execTask(task: Task): boolean {
     const why = this.whyNotReady
     if (why != null) {
       // console.log(`execTask(): ${this.pid} not ready: ${why}`)
-      return Promise.resolve(false)
+      return false
     }
 
     if (
@@ -242,14 +245,14 @@ export class BatchProcess {
           this.#lastHealthCheck = Date.now()
         })
       this.#execTask(t)
-      return Promise.resolve(false)
+      return false
     }
 
     // console.log("running " + task + " on " + this.pid)
     return this.#execTask(task)
   }
 
-  async #execTask(task: Task): Promise<boolean> {
+  #execTask(task: Task): boolean {
     if (this.#ending) return false
 
     this.#taskCount++
@@ -298,7 +301,9 @@ export class BatchProcess {
         task.reject(new Error("proc.stdin unexpectedly closed"))
         return false
       } else {
-        await stdin.write(new TextEncoder().encode(cmd))
+        stdin.write(new TextEncoder().encode(cmd)).catch((err) => {
+          task.reject(err)
+        })
         return true
       }
     } catch (err) {
@@ -319,10 +324,9 @@ export class BatchProcess {
   end(gracefully = true, source: string) {
     if (this.#ending) {
       return undefined
-    } else {
-      this.#ending = true
-      return this.#end(gracefully, source)
     }
+    this.#ending = true
+    return this.#end(gracefully, source)
   }
 
   // NOTE: Must only be invoked by this.end(), and only expected to be invoked

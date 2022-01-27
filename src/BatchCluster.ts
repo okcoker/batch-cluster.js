@@ -1,4 +1,4 @@
-import { timers, Timeout, EventEmitter } from "./deps.ts"
+import { timers, EventEmitter } from "./deps.ts"
 import { filterInPlace } from "./Array.ts"
 import { BatchClusterEmitter, BatchClusterEvents } from "./BatchClusterEmitter.ts"
 import {
@@ -64,7 +64,7 @@ export class BatchCluster {
   #lastSpawnedProcTime = 0
   #lastPidsCheckTime = Date.now()
   readonly #tasks: Task[] = []
-  #onIdleInterval: Timeout | undefined
+  #onIdleInterval: number | undefined
   readonly #startErrorRate = new Rate()
   #spawnedProcs = 0
   #endPromise?: Deferred<void>
@@ -105,11 +105,14 @@ export class BatchCluster {
     })
 
     if (this.options.onIdleIntervalMillis > 0) {
-      this.#onIdleInterval = timers.setInterval(
+      this.#onIdleInterval = setInterval(
         () => this.onIdle(),
         this.options.onIdleIntervalMillis
       )
-      this.#onIdleInterval.unref() // < don't prevent node from exiting
+
+      // don't prevent node from exiting
+      // https://github.com/denoland/deno/issues/6141
+      Deno.unrefTimer(this.#onIdleInterval)
     }
     this.#logger = this.options.logger
 
@@ -344,18 +347,18 @@ export class BatchCluster {
   }
 
   // NOT ASYNC: updates internal state.
-  #execNextTask(): Promise<boolean> {
-    if (this.#tasks.length === 0 || this.ended) return Promise.resolve(false)
+  #execNextTask(): boolean {
+    if (this.#tasks.length === 0 || this.ended) return false
     const readyProc = this.#procs.find((ea) => ea.ready)
     // no procs are idle and healthy :(
     if (readyProc == null) {
-      return Promise.resolve(false)
+      return false
     }
 
     const task = this.#tasks.shift()
     if (task == null) {
       this.emitter.emit("internalError", new Error("unexpected null task"))
-      return Promise.resolve(false)
+      return false
     }
 
     const submitted = readyProc.execTask(task)

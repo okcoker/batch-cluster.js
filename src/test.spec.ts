@@ -7,6 +7,8 @@ import {
   setFailrate,
   setIgnoreExit,
   setRngseed,
+  describe,
+  it
 } from "./_chai.spec.ts"
 
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
