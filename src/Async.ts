@@ -1,10 +1,10 @@
-import { timers } from "./deps.ts"
+import { timers } from './deps.ts';
 
 export function delay(millis: number, unref = false): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const t = timers.setTimeout(() => resolve(), millis)
-    if (unref) t.unref()
-  })
+	return new Promise<void>((resolve) => {
+		const t = timers.setTimeout(() => resolve(), millis);
+		if (unref) t.unref();
+	});
 }
 
 /**
@@ -12,21 +12,21 @@ export function delay(millis: number, unref = false): Promise<void> {
  * passes.
  */
 export async function until(
-  f: (count: number) => boolean | Promise<boolean>,
-  timeoutMs: number,
-  delayMs = 50
+	f: (count: number) => boolean | Promise<boolean>,
+	timeoutMs: number,
+	delayMs = 50,
 ): Promise<boolean> {
-  const timeoutAt = Date.now() + timeoutMs
-  let count = 0
-  while (Date.now() < timeoutAt) {
-    if (await f(count)) {
-      return true
-    } else {
-      count++
-      await delay(delayMs)
-    }
-  }
-  return false
+	const timeoutAt = Date.now() + timeoutMs;
+	let count = 0;
+	while (Date.now() < timeoutAt) {
+		if (await f(count)) {
+			return true;
+		} else {
+			count++;
+			await delay(delayMs);
+		}
+	}
+	return false;
 }
 
 /**
@@ -35,16 +35,16 @@ export async function until(
  * underlying thunk to be called (mostly useful for tests)
  */
 export function ratelimit<T>(
-  f: () => T,
-  minDelayMs: number
+	f: () => T,
+	minDelayMs: number,
 ): () => T | undefined {
-  let next = 0
-  return (force?: boolean) => {
-    if (Date.now() > next || force === true) {
-      next = Date.now() + minDelayMs
-      return f()
-    } else {
-      return
-    }
-  }
+	let next = 0;
+	return (force?: boolean) => {
+		if (Date.now() > next || force === true) {
+			next = Date.now() + minDelayMs;
+			return f();
+		} else {
+			return;
+		}
+	};
 }
