@@ -2,7 +2,7 @@ import { delay } from './Async.ts';
 import { Deferred } from './Deferred.ts';
 import { InternalBatchProcessOptions } from './InternalBatchProcessOptions.ts';
 import { Parser } from './Parser.ts';
-import { Buffer } from './deps.ts';
+import { Buffer } from '../deps.ts';
 
 type TaskOptions = Pick<
 	InternalBatchProcessOptions,

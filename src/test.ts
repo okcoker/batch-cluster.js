@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { delay } from './Async.ts';
 import { Mutex } from './Mutex.ts';
-import { seedrandom /*, split2 */ } from './deps.ts';
+import { seedrandom /*, split2 */ } from '../deps.ts';
 
 /**
  * This is a script written to behave similarly to ExifTool or

@@ -1,5 +1,5 @@
 import { isFunction } from './Object.ts';
-import { Buffer } from './deps.ts';
+import { Buffer } from '../deps.ts';
 
 export function blank(s: string | Buffer | undefined): boolean {
 	return s == null || String(s).trim().length === 0;

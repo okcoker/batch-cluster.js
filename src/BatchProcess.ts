@@ -1,7 +1,7 @@
 import { delay, until } from './Async.ts';
 import { Deferred } from './Deferred.ts';
 import { cleanError, tryEach } from './Error.ts';
-import { Buffer, timers } from './deps.ts';
+import { Buffer, timers } from '../deps.ts';
 import { InternalBatchProcessOptions } from './InternalBatchProcessOptions.ts';
 import { Logger } from './Logger.ts';
 import { map } from './Object.ts';

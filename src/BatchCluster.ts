@@ -1,4 +1,4 @@
-import { EventEmitter, timers } from './deps.ts';
+import { EventEmitter, timers } from '../deps.ts';
 import { filterInPlace } from './Array.ts';
 import {
 	BatchClusterEmitter,

@@ -1,6 +1,6 @@
 import { BatchProcess } from './BatchProcess.ts';
 import { Task } from './Task.ts';
-import { Buffer } from './deps.ts';
+import { Buffer } from '../deps.ts';
 
 type Args<T> = T extends (...args: infer A) => void ? A : never;
 

@@ -1,4 +1,4 @@
-import { timers } from './deps.ts';
+import { timers } from '../deps.ts';
 
 export function delay(millis: number, unref = false): Promise<void> {
 	return new Promise<void>((resolve) => {
