@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { delay } from './Async.ts';
-import { Mutex } from './Mutex.ts';
-import { seedrandom /*, split2 */ } from '../deps.ts';
+import { seedrandom, readLines } from '../deps.ts';
 
 /**
  * This is a script written to behave similarly to ExifTool or
@@ -61,7 +60,7 @@ async function onLine(line: string): Promise<void> {
 		switch (firstToken) {
 			case 'flaky': {
 				const flakeRate = toF(tokens.shift()) ?? failrate;
-				write(
+				await write(
 					'flaky response (' +
 						(r < flakeRate ? 'FAIL' : 'PASS') +
 						', r: ' +
@@ -73,40 +72,40 @@ async function onLine(line: string): Promise<void> {
 						')',
 				);
 				if (r < flakeRate) {
-					write('FAIL');
+					await write('FAIL');
 				} else {
-					write('PASS');
+					await write('PASS');
 				}
 				break;
 			}
 
 			case 'upcase': {
-				write(postToken.toUpperCase());
-				write('PASS');
+				await write(postToken.toUpperCase());
+				await write('PASS');
 				break;
 			}
 			case 'downcase': {
-				write(postToken.toLowerCase());
-				write('PASS');
+				await write(postToken.toLowerCase());
+				await write('PASS');
 				break;
 			}
 			case 'sleep': {
 				const millis = parseInt(tokens[0] ?? '100');
 				await delay(millis);
-				write(JSON.stringify({ slept: millis, pid: Deno.pid }));
-				write('PASS');
+				await write(JSON.stringify({ slept: millis, pid: Deno.pid }));
+				await write('PASS');
 				break;
 			}
 
 			case 'version': {
-				write('v1.2.3');
-				write('PASS');
+				await write('v1.2.3');
+				await write('PASS');
 				break;
 			}
 
 			case 'exit': {
 				if (ignoreExit) {
-					write('ignoreExit is set');
+					await write('ignoreExit is set');
 				} else {
 					Deno.exit(0);
 				}
@@ -115,26 +114,30 @@ async function onLine(line: string): Promise<void> {
 			case 'stderr': {
 				// force stdout to be emitted before stderr, and exercise stream
 				// debouncing:
-				write('PASS');
+				await write('PASS');
 				await delay(1);
 				console.error('Error: ' + postToken);
 				break;
 			}
 			default: {
 				console.error('invalid or missing command for input', line);
-				write('FAIL');
+				await write('FAIL');
 			}
 		}
 	} catch (err) {
 		console.error('Error: ' + err);
-		write('FAIL');
+		await write('FAIL');
 	}
-	return;
 }
 
-// @todo
-// const m = new Mutex()
-
-// process.stdin
-//   .pipe(split2())
-//   .on("data", (ea: string) => m.serial(() => onLine(ea)))
+for await (const line of readLines(Deno.stdin)) {
+	// await write(`Line: "${line}"`);
+	// The default delimeter in split2 https://www.npmjs.com/package/split2
+	// line.split(/\r?\n/).filter(Boolean).map((splitLine) => {
+	// 	m.serial(() => onLine(splitLine))
+	// });
+	await onLine(line);
+	// for (const split of line.split(/\r?\n/).filter(Boolean)) {
+	// 	await onLine(split);
+	// }
+}

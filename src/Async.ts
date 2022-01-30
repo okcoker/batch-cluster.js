@@ -1,9 +1,7 @@
-import { timers } from '../deps.ts';
-
 export function delay(millis: number, unref = false): Promise<void> {
 	return new Promise<void>((resolve) => {
-		const t = timers.setTimeout(() => resolve(), millis);
-		if (unref) t.unref();
+		const t = setTimeout(resolve, millis);
+		if (unref) Deno.unrefTimer(t)
 	});
 }
 
@@ -14,19 +12,28 @@ export function delay(millis: number, unref = false): Promise<void> {
 export async function until(
 	f: (count: number) => boolean | Promise<boolean>,
 	timeoutMs: number,
-	delayMs = 50,
+	delayMs = 200,
 ): Promise<boolean> {
 	const timeoutAt = Date.now() + timeoutMs;
 	let count = 0;
-	while (Date.now() < timeoutAt) {
-		if (await f(count)) {
-			return true;
-		} else {
-			count++;
-			await delay(delayMs);
-		}
-	}
-	return false;
+	let timer = 0;
+
+	return await new Promise((resolve) => {
+		timer = setInterval(async () => {
+			if (Date.now() < timeoutAt) {
+				if (await f(count)) {
+					clearInterval(timer);
+					resolve(true);
+				} else {
+					count++;
+				}
+				return;
+			}
+
+			clearInterval(timer);
+			resolve(false);
+		}, delayMs);
+	})
 }
 
 /**

@@ -1,7 +1,8 @@
 import { expect, use } from 'https://cdn.skypack.dev/chai@4.3.4?dts';
 import * as timekeeper from 'https://cdn.skypack.dev/timekeeper@2.2.0?dts';
 import { default as chaiString } from 'https://cdn.skypack.dev/chai-string@1.5.0?dts';
-import { default as chaiAsPromised } from 'https://cdn.skypack.dev/chai-as-promised@7.1.1?dts';
+// This is causing issues with vscode deno extension
+// import { default as chaiAsPromised } from 'https://cdn.skypack.dev/chai-as-promised@7.1.1?dts';
 import { default as chaiWithinTolerance } from 'https://cdn.skypack.dev/chai-withintoleranceof@1.0.1?dts';
 import {
 	afterAll,
@@ -10,13 +11,11 @@ import {
 	beforeEach,
 	describe,
 	it,
-	test,
-	TestSuite,
+	test
 } from 'https://deno.land/x/test_suite@0.9.5/mod.ts';
 import { assertEquals } from 'https://deno.land/std@0.122.0/testing/asserts.ts';
 import { path } from '../deps.ts';
 import { Log, logger, setLogger } from './Logger.ts';
-import { orElse } from './Object.ts';
 import { Parser } from './Parser.ts';
 import { pids } from './Pids.ts';
 import { notBlank } from './String.ts';
@@ -24,7 +23,7 @@ import { notBlank } from './String.ts';
 const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
 
 use(chaiString);
-use(chaiAsPromised);
+// use(chaiAsPromised);
 use(chaiWithinTolerance);
 
 // Tests should be quiet unless LOG is set
@@ -56,6 +55,7 @@ export const parser: Parser<string> = (
 	stderr: string | undefined,
 	passed: boolean,
 ) => {
+	// console.log(stdout, stderr, passed);
 	if (stderr != null) {
 		parserErrors.push(stderr);
 	}
@@ -130,96 +130,35 @@ export function flatten<T>(arr: (T | T[])[], result: T[] = []): T[] {
 
 const rngseedPrefix = new Date().toISOString().substr(0, 7) + '.';
 let rngseedCounter = 0;
-let rngseedOverride: string | undefined;
-
-export function setRngseed(seed?: string) {
-	rngseedOverride = seed;
+export type ProcessEnv = {
+	rngseed?: string;
+	failrate?: number;
+	newline?: 'lf' | 'crlf';
+	ignoreExit?: boolean;
+	unluckyfail?: boolean;
 }
 
-function rngseed() {
-	// We need a new rngseed for every execution, or all runs will either pass or
-	// fail:
-	return orElse(rngseedOverride, () => rngseedPrefix + rngseedCounter++);
-}
-
-let failrate = '0.05'; // 5%
-
-export function setFailrate(percent = 10) {
-	failrate = (percent / 100).toFixed(2);
-}
-
-let unluckyfail = '1';
-
-/**
- * Should EUNLUCKY be handled properly by the test script, and emit a "FAIL", or
- * require batch-cluster to timeout the job?
- *
- * Basically setting unluckyfail to true is worst-case behavior for a script,
- * where all flaky errors require a timeout to recover.
- */
-export function setUnluckyFail(b = true) {
-	unluckyfail = b ? '1' : '0';
-}
-
-let newline = 'lf';
-
-export function setNewline(eol: 'lf' | 'crlf' = 'lf') {
-	newline = eol;
-}
-
-let ignoreExit: '1' | '0' = '0';
-
-export function setIgnoreExit(ignore = false) {
-	ignoreExit = ignore ? '1' : '0';
-}
-
-type TestFunction = () => void;
-type CreateSuiteOptions = {
-	beforeEach?: TestFunction;
-	afterEach?: TestFunction;
-	beforeAll?: TestFunction;
-	afterAll?: TestFunction;
-};
-
-export function createTestSuite<T>(
-	name: string,
-	options: CreateSuiteOptions = {},
-): TestSuite<T> {
-	return new TestSuite({
-		name: name,
-		beforeAll() {
-			options.afterAll?.();
-		},
-
-		beforeEach() {
-			parserErrors.length = 0;
-			setFailrate();
-			setUnluckyFail();
-			setNewline();
-			setIgnoreExit();
-			setRngseed();
-			options.beforeEach?.();
-		},
-		afterEach() {
-			expect(unhandledRejections).to.eql([]);
-			options.afterEach?.();
-		},
-
-		afterAll() {
-			options.afterAll?.();
-		},
-	});
-}
-
-export const processFactory = () => {
+export const processFactory = (env: ProcessEnv = {}) => {
 	const proc = Deno.run({
-		cmd: [Deno.execPath(), path.join(__dirname, 'test.js')],
+		cmd: [Deno.execPath(), 'run', '--allow-all', path.join(__dirname, 'test.ts')],
+		stdin: 'piped',
+		stdout: 'piped',
+		stderr: 'piped',
 		env: {
-			rngseed: rngseed(),
-			failrate,
-			newline,
-			ignoreExit,
-			unluckyfail,
+			// We need a new rngseed for every execution, or all
+			// runs will either pass or fail:
+			rngseed: env.rngseed || `${rngseedPrefix}${rngseedCounter++}`,
+			failrate: typeof env.failrate === 'number' ? (env.failrate / 100).toFixed(2) : '0.05',
+			newline: env.newline || 'lf',
+			ignoreExit: env.ignoreExit ? '1' : '0',
+			/**
+			 * Should EUNLUCKY be handled properly by the test script, and emit a "FAIL", or
+			 * require batch-cluster to timeout the job?
+			 *
+			 * Basically setting unluckyfail to true is worst-case behavior for a script,
+			 * where all flaky errors require a timeout to recover.
+			 */
+			unluckyfail: env.unluckyfail || typeof env.unluckyfail === 'undefined' ? '1' : '0'
 		},
 	});
 	procs.push(proc);

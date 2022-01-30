@@ -1,140 +1,185 @@
 import { until } from './Async.ts';
-import { Deferred } from './Deferred.ts';
 import { kill, pidExists } from './Pids.ts';
 import {
 	describe,
 	expect,
 	it,
 	processFactory,
-	setFailrate,
-	setIgnoreExit,
-	setRngseed,
+	ProcessEnv
 } from './_chai.spec.ts';
 
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-
 describe('test.js', () => {
 	class Harness {
 		readonly child: Deno.Process;
 		public output = '';
-		constructor() {
-			setFailrate(0);
-			this.child = processFactory();
-			this.child.on('error', (err: any) => {
-				throw err;
-			});
-			this.child.stdout!.on('data', (buff: any) => {
-				this.output += buff.toString();
+		constructor(env: ProcessEnv = {}) {
+			this.child = processFactory({
+				failrate: 0,
+				...env
 			});
 		}
-		async untilOutput(minLength = 0): Promise<void> {
-			await until(() => this.output.length > minLength, 1000);
-			return;
+
+		async untilOutput(minLength = 0): Promise<boolean> {
+			return await until(async () => {
+				const buffered = new Uint8Array(512);
+				const length = await this.child.stdout!.read(buffered);
+				if (length) {
+					this.output += new TextDecoder().decode(buffered.slice(0, length));
+				}
+				return this.output.length > minLength;
+			}, 1000);
 		}
+
 		async end(): Promise<void> {
-			this.child.stdin!.end(null);
-			await until(() => this.running().then((ea) => !ea), 1000);
+			try { this.child.stdin!.close(); } catch(_) { /**/ }
+			try { this.child.stdout!.close(); } catch(_) { /**/ }
+			try { this.child.stderr!.close(); } catch(_) { /**/ }
+			this.child.close();
+
+			await until(() => this.notRunning(), 1000);
+
 			if (await this.running()) {
 				console.error('Ack, I had to kill child pid ' + this.child.pid);
 				kill(this.child.pid);
 			}
-			return;
 		}
-		async running(): Promise<boolean> {
+
+		running(): Promise<boolean> {
 			return pidExists(this.child.pid);
 		}
-		async notRunning(): Promise<boolean> {
+
+		notRunning(): Promise<boolean> {
 			return this.running().then((ea) => !ea);
 		}
+
+		async getChildStdOut() {
+			const [status, rawOutput, rawError] = await Promise.all([
+				this.child.status(),
+				this.child.output(),
+				this.child.stderrOutput()
+			]);
+			const { code } = status;
+
+			if (code !== 0) {
+				throw new TextDecoder().decode(rawError);
+			}
+
+			this.output = new TextDecoder().decode(rawOutput);
+
+			return this.output;
+		}
+
 		async assertStdout(f: (output: string) => void) {
 			// The OS may take a bit before the PID shows up in the process table:
 			const alive = await until(() => pidExists(this.child.pid), 2000);
 			expect(alive).to.eql(true);
-			const d = new Deferred();
-			this.child.on('exit', async () => {
-				try {
-					f(this.output.trim());
-					expect(await this.running()).to.eql(false);
-					d.resolve('on exit');
-				} catch (err: any) {
-					d.reject(err);
-				}
-			});
-			return d;
+
+			const output = await this.getChildStdOut();
+
+			await this.end();
+
+			await f(output.trim());
 		}
 	}
 
-	it('results in expected output', async () => {
+	it('results in expected output', () => {
 		const h = new Harness();
-		const a = h.assertStdout((ea) =>
-			expect(ea).to.eql('HELLO\nPASS\nworld\nPASS\nFAIL\nv1.2.3\nPASS')
-		);
-		h.child.stdin!.end(
-			'upcase Hello\ndowncase World\ninvalid input\nversion\n',
-		);
+		const a = h.assertStdout((ea) => {
+			expect(ea).to.eql('HELLO\nPASS\nworld\nPASS\nFAIL\nv1.2.3\nPASS');
+		});
+
+		h.child.stdin!.write(
+			new TextEncoder().encode('upcase Hello\ndowncase World\ninvalid input\nversion\n')
+		).then(() => {
+			h.child.stdin!.close();
+		});
+
 		return a;
 	});
 
 	it('exits properly if ignoreExit is not set', async () => {
 		const h = new Harness();
-		h.child.stdin!.write('upcase fuzzy\nexit\n');
+		h.child.stdin!.write(new TextEncoder().encode('upcase fuzzy\nexit\n'));
 		await h.untilOutput(9);
+		await h.end();
 		expect(h.output).to.eql('FUZZY\nPASS\n');
 		await until(() => h.notRunning(), 500);
 		expect(await h.running()).to.eql(false);
-		return;
 	});
 
 	it('kill(!force) with ignoreExit set doesn\'t cause the process to end', async () => {
-		setIgnoreExit(true);
-		const h = new Harness();
-		h.child.stdin!.write('upcase fuzzy\n');
+		const h = new Harness({
+			ignoreExit: true
+		});
+		h.child.stdin!.write(new TextEncoder().encode('upcase fuzzy\n'));
 		await h.untilOutput();
 		kill(h.child.pid, false);
 		await until(() => h.notRunning(), 500);
 		expect(await h.running()).to.eql(true);
-		return h.end();
+		await h.end();
 	});
 
-	it('kill(!force) with ignoreExit unset causes the process to end', async () => {
-		setIgnoreExit(false);
-		const h = new Harness();
-		h.child.stdin!.write('upcase fuzzy\n');
+	it('kill(force) with ignoreExit unset causes the process to end', async () => {
+		const h = new Harness({
+			ignoreExit: false
+		});
+		h.child.stdin!.write(new TextEncoder().encode('upcase fuzzy\n'));
 		await h.untilOutput();
 		kill(h.child.pid, true);
+		// This process wont be killed until we check status()
+		// https://github.com/denoland/deno/issues/7087
+		const { code, signal } = await h.child.status();
+
+		// close out ops
+		if (code) {
+			if (!signal) {
+				console.log('\n\nNote: Sometimes this test is flakey and ends up here. This might be related to the kill issue listed above? Other times signal is appropriately filled');
+			}
+			await h.end();
+		}
+
 		await until(() => h.notRunning(), 500);
 		expect(await h.running()).to.eql(false);
-		return;
 	});
 
 	it('kill(force) even with ignoreExit set causes the process to end', async () => {
-		setIgnoreExit(true);
-		const h = new Harness();
-		h.child.stdin!.write('upcase fuzzy\n');
+		const h = new Harness({
+			ignoreExit: true
+		});
+		h.child.stdin!.write(new TextEncoder().encode('upcase fuzzy\n'));
 		await h.untilOutput();
 		kill(h.child.pid, true);
+		// This process wont be killed until we check status()
+		// https://github.com/denoland/deno/issues/7087
+		const { code, signal } = await h.child.status();
+		// close out ops
+		if (code) {
+			if (!signal) {
+				console.log('\n\nNote: Sometimes this test is flakey and ends up here. This might be related to the kill issue listed above? Other times signal is appropriately filled');
+			}
+			await h.end();
+		}
 		await until(() => h.notRunning(), 500);
 		expect(await h.running()).to.eql(false);
-		return;
 	});
 
 	it('doesn\'t exit if ignoreExit is set', async () => {
-		setIgnoreExit(true);
-		const h = new Harness();
-		h.child.stdin!.write('upcase Boink\nexit\n');
+		const h = new Harness({
+			ignoreExit: true
+		});
+		h.child.stdin!.write(new TextEncoder().encode('upcase Boink\nexit\n'));
 		await h.untilOutput('BOINK\nPASS\nignore'.length);
 		expect(h.output).to.eql('BOINK\nPASS\nignoreExit is set\n');
 		expect(await h.running()).to.eql(true);
 		await h.end();
 		expect(await h.running()).to.eql(false);
-		return;
 	});
 
 	it('returns a valid pid', async () => {
 		const h = new Harness();
 		expect(await pidExists(h.child.pid)).to.eql(true);
 		await h.end();
-		return;
 	});
 
 	it('sleeps serially', () => {
@@ -161,16 +206,19 @@ describe('test.js', () => {
 				expect(actualTimes).to.eql(times);
 			})
 			.then(() => expect(Date.now() - start).to.be.gte(603));
-		h.child.stdin!.end(
-			times.map((ea) => 'sleep ' + ea).join('\n') + '\nexit\n',
-		);
+		h.child.stdin?.write(
+			new TextEncoder().encode(times.map((ea) => 'sleep ' + ea).join('\n') + '\nexit\n')
+		).then(() => {
+			h.child.stdin?.close()
+		});
 		return a;
 	});
 
 	it('flakes out the first N responses', () => {
-		setFailrate(0);
-		setRngseed('hello');
-		const h = new Harness();
+		const h = new Harness({
+			failrate: 0,
+			rngseed: 'hello'
+		});
 		// These random numbers are consistent because we have a consistent rngseed:
 		const a = h.assertStdout((ea) =>
 			expect(ea).to.eql(
@@ -184,7 +232,9 @@ describe('test.js', () => {
 				].join('\n'),
 			)
 		);
-		h.child.stdin!.end('flaky .5\nflaky 0\nflaky 1\nexit\n');
+		h.child.stdin?.write(new TextEncoder().encode('flaky .5\nflaky 0\nflaky 1\nexit\n')).then(() => {
+			h.child.stdin?.close()
+		});
 		return a;
 	});
 });

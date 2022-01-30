@@ -41,7 +41,7 @@ $ ps -p 32183
 export async function pidExists(
 	pid: number | null | undefined,
 ): Promise<boolean> {
-	if (pid == null) return Promise.resolve(false);
+	if (pid == null) return false;
 	const needle = safePid(pid);
 	const cmd = isWin ? 'tasklist' : 'ps';
 	const args = isWin
@@ -58,31 +58,33 @@ export async function pidExists(
 
 	const p = Deno.run({
 		cmd: [cmd, ...args[0] as string[]],
-		...(args[1] || []),
+		...(args[1] || {}),
+		stdin: 'piped',
+		stdout: 'piped',
+		stderr: 'piped'
 	});
 
-	const { code } = await p.status();
+	const [ status, rawOutput/*, rawError*/] = await Promise.all([
+		p.status(),
+		p.output()
+		// p.stderrOutput()
+	]);
+	const { code } = status;
 
-	// (error: Error | null, stdout: string) => {
-	//   const result =
-	//     error == null &&
-	//     new RegExp(
-	//       isWin ? '"' + needle + '"' : "^\\s*" + needle + "\\b",
-	//       // The posix regex pattern needs multiline support:
-	//       "m"
-	//     ).exec(String(stdout).trim()) != null
-	//   resolve(result)
-	// }
-
-	const rawOutput = await p.output();
+	const output = new TextDecoder().decode(rawOutput);
 	// @todo do we check rawError instead?
 	// const rawError = await p.stderrOutput();
+
+	try { p.stdin.close(); } catch(_) { /* */ }
+	try { p.stdout.close(); } catch(_) { /* */ }
+	try { p.stderr.close(); } catch(_) { /* */ }
+	p.close();
 
 	return code === 0 && new RegExp(
 				isWin ? '"' + needle + '"' : '^\\s*' + needle + '\\b',
 				// The posix regex pattern needs multiline support:
 				'm',
-			).exec(String(rawOutput).trim()) != null;
+			).exec(String(output).trim()) != null;
 }
 
 const winRe = /^".+?","(\d+)"/;
@@ -98,15 +100,26 @@ export async function pids(): Promise<number[]> {
 			isWin ? 'tasklist' : 'ps',
 			...(isWin ? ['/NH', '/FO', 'CSV'] : ['-e']),
 		],
+		stdin: 'piped',
+		stdout: 'piped',
+		stderr: 'piped'
 	});
-	const { code } = await p.status();
-	const rawOutput = await p.output();
-	const rawError = await p.stderrOutput();
+	const [ status, rawOutput, rawError] = await Promise.all([
+		p.status(),
+		p.output(),
+		p.stderrOutput()
+	]);
+	const { code } = status;
 
 	if (code !== 0 || ('' + rawError).trim().length > 0) {
 		const errorString = new TextDecoder().decode(rawError);
 		throw new Error(errorString);
 	}
+
+	try { p.stdin.close(); } catch(_) { /* */ }
+	try { p.stdout.close(); } catch(_) { /* */ }
+	try { p.stderr.close(); } catch(_) { /* */ }
+	p.close();
 
 	return new TextDecoder().decode(rawOutput)
 		.trim()
@@ -136,7 +149,7 @@ export function kill(pid: number | null | undefined, force = false): void {
 		if (force) {
 			args.push('/F');
 		}
-		Deno.run({ cmd: ['taskkill', ...args] });
+		Deno.run({ cmd: ['taskkill', ...args] }).close();
 	} else {
 		try {
 			Deno.kill(pid, force ? 'SIGKILL' : 'SIGTERM');
