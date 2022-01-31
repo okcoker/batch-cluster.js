@@ -1,4 +1,4 @@
-import { EventEmitter, timers } from '../deps.ts';
+import { EventEmitter, setImmediate } from '../deps.ts';
 import { filterInPlace } from './Array.ts';
 import {
 	BatchClusterEmitter,
@@ -156,7 +156,7 @@ export class BatchCluster {
 	end(gracefully = true): Deferred<void> {
 		if (this.#endPromise == null) {
 			this.emitter.emit('beforeEnd');
-			map(this.#onIdleInterval, timers.clearInterval);
+			clearInterval(this.#onIdleInterval);
 			this.#onIdleInterval = undefined;
 			self.removeEventListener('beforeunload', this.#beforeExitListener);
 			self.removeEventListener('unload', this.#exitListener);
@@ -181,6 +181,7 @@ export class BatchCluster {
 	 * attempted on an idle BatchProcess
 	 */
 	enqueueTask<T>(task: Task<T>): Promise<T> {
+		console.log('enqueue', task.command);
 		if (this.ended) {
 			task.reject(
 				new Error(
@@ -189,7 +190,7 @@ export class BatchCluster {
 			);
 		}
 		this.#tasks.push(task);
-		timers.setImmediate(() => this.onIdle());
+		setImmediate(() => this.onIdle());
 		return task.promise.finally(() => this.onIdle());
 	}
 
@@ -268,11 +269,12 @@ export class BatchCluster {
 	 */
 	async pids(): Promise<number[]> {
 		const arr: number[] = [];
-		for (const proc of [...this.#procs]) {
-			if (proc != null && !proc.exited && (await proc.running())) {
+		for (const proc of this.#procs) {
+			if (!proc.exited && (await proc.running())) {
 				arr.push(proc.pid);
 			}
 		}
+
 		return arr;
 	}
 
@@ -318,22 +320,22 @@ export class BatchCluster {
 	}
 
 	// NOT ASYNC: updates internal state:
-	private onIdle() {
-		this.vacuumProcs();
+	private async onIdle() {
+		await this.vacuumProcs();
 		while (this.#execNextTask()) {
 			//
 		}
 		this.#maybeLaunchNewChild();
 	}
 
-	#maybeCheckPids() {
+	async #maybeCheckPids() {
 		if (
 			this.options.pidCheckIntervalMillis > 0 &&
 			this.#lastPidsCheckTime + this.options.pidCheckIntervalMillis <
 				Date.now()
 		) {
 			this.#lastPidsCheckTime = Date.now();
-			void this.pids();
+			await this.pids();
 		}
 	}
 
@@ -342,8 +344,8 @@ export class BatchCluster {
 	 * normally invoked automatically as tasks are enqueued and processed.
 	 */
 	// NOT ASYNC: updates internal state. only exported for tests.
-	vacuumProcs() {
-		this.#maybeCheckPids();
+	async vacuumProcs() {
+		await this.#maybeCheckPids();
 		filterInPlace(this.#procs, (proc) => {
 			// Don't bother running procs:
 			if (!proc.ending && !proc.idle) return true;
@@ -351,13 +353,14 @@ export class BatchCluster {
 			const why = this.#procs.length > this.options.maxProcs
 				? 'tooMany'
 				: proc.whyNotHealthy; // NOT whyNotReady: we don't care about busy procs
-			if (why != null) {
+			if (why) {
 				this.#childEndCounts.set(
 					why,
 					1 + this.countEndedChildProcs(why),
 				);
 				void proc.end(true, why);
 			}
+
 			return why == null;
 		});
 	}
@@ -367,12 +370,13 @@ export class BatchCluster {
 		if (this.#tasks.length === 0 || this.ended) return false;
 		const readyProc = this.#procs.find((ea) => ea.ready);
 		// no procs are idle and healthy :(
-		if (readyProc == null) {
+		if (!readyProc) {
 			return false;
 		}
 
 		const task = this.#tasks.shift();
-		if (task == null) {
+
+		if (!task) {
 			this.emitter.emit(
 				'internalError',
 				new Error('unexpected null task'),
@@ -394,7 +398,7 @@ export class BatchCluster {
 	}
 
 	// NOT ASYNC: updates internal state.
-	#maybeLaunchNewChild() {
+	async #maybeLaunchNewChild() {
 		if (
 			!this.ended &&
 			this.#tasks.length > 0 &&
@@ -405,7 +409,7 @@ export class BatchCluster {
 		) {
 			// prevent multiple concurrent spawns:
 			this.#lastSpawnedProcTime = Date.now();
-			void this.#spawnChild();
+			await this.#spawnChild();
 		}
 	}
 
@@ -416,37 +420,40 @@ export class BatchCluster {
 		try {
 			const child = await this.options.processFactory();
 			const pid = child.pid;
-			if (pid == null) {
+			if (!pid) {
 				this.emitter.emit('childExit', child);
 				return;
 			}
-			const proc = new BatchProcess(child, this.options);
+			const proc = new BatchProcess(child, {
+				...this.options,
+				onProcessExit: () => {
+					this.#tasksPerProc.push(proc.taskCount);
+					this.emitter.emit('childExit', child);
+				}
+			});
 
 			if (this.ended) {
-				void proc.end(false, 'ended');
+				await proc.end(false, 'ended');
 				return;
 			}
 
 			// Bookkeeping (even if we need to shut down `proc`):
 			this.#spawnedProcs++;
 			this.emitter.emit('childStart', child);
-			void proc.exitPromise.then(() => {
-				this.#tasksPerProc.push(proc.taskCount);
-				this.emitter.emit('childExit', child);
-			});
 
 			// Did we call _mayLaunchNewChild() a couple times in parallel?
 			if (this.#procs.length >= this.options.maxProcs) {
 				// only vacuum if we're at the limit
-				this.vacuumProcs();
+				await this.vacuumProcs();
 			}
+
 			if (this.#procs.length >= this.options.maxProcs) {
-				void proc.end(false, 'maxProcs');
+				await proc.end(false, 'maxProcs');
 				return;
-			} else {
-				this.#procs.push(proc);
-				return proc;
 			}
+
+			this.#procs.push(proc);
+			return proc;
 		} catch (err) {
 			this.emitter.emit('startError', asError(err));
 			return;

@@ -1,6 +1,5 @@
 import { BatchProcess } from './BatchProcess.ts';
 import { Task } from './Task.ts';
-import { Buffer } from '../deps.ts';
 
 type Args<T> = T extends (...args: infer A) => void ? A : never;
 
@@ -60,7 +59,7 @@ export interface BatchClusterEvents {
 	 * stream.
 	 */
 	taskData: (
-		data: Buffer | string,
+		data: Uint8Array | string,
 		task: Task | undefined,
 		proc: BatchProcess,
 	) => void;

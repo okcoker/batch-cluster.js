@@ -2,7 +2,6 @@ import { delay } from './Async.ts';
 import { Deferred } from './Deferred.ts';
 import { InternalBatchProcessOptions } from './InternalBatchProcessOptions.ts';
 import { Parser } from './Parser.ts';
-import { Buffer } from '../deps.ts';
 
 type TaskOptions = Pick<
 	InternalBatchProcessOptions,
@@ -81,16 +80,24 @@ export class Task<T = any> {
 		);
 	}
 
-	onStdout(buf: string | Buffer): void {
-		this.#stdout += buf.toString();
+	getStringFromChunk(chunk: string | Uint8Array): string {
+		if (typeof chunk === 'string') {
+			return chunk;
+		}
+
+		return new TextDecoder().decode(chunk);
+	}
+
+	onStdout(output: string | Uint8Array): void {
+		this.#stdout += this.getStringFromChunk(output);
 		const passRE = this.#opts?.passRE;
-		if (passRE != null && passRE.exec(this.#stdout) != null) {
+		if (passRE && passRE.exec(this.#stdout)) {
 			// remove the pass token from stdout:
 			this.#stdout = this.#stdout.replace(passRE, '');
 			this.#resolve(true);
 		} else {
 			const failRE = this.#opts?.failRE;
-			if (failRE != null && failRE.exec(this.#stdout) != null) {
+			if (failRE && failRE.exec(this.#stdout)) {
 				// remove the fail token from stdout:
 				this.#stdout = this.#stdout.replace(failRE, '');
 				this.#resolve(false);
@@ -98,10 +105,10 @@ export class Task<T = any> {
 		}
 	}
 
-	onStderr(buf: string | Buffer): void {
-		this.#stderr += buf.toString();
+	onStderr(err: string | Uint8Array): void {
+		this.#stderr += this.getStringFromChunk(err);
 		const failRE = this.#opts?.failRE;
-		if (failRE != null && failRE.exec(this.#stderr) != null) {
+		if (failRE && failRE.exec(this.#stderr)) {
 			// remove the fail token from stderr:
 			this.#stderr = this.#stderr.replace(failRE, '');
 			this.#resolve(false);
@@ -145,8 +152,7 @@ export class Task<T = any> {
 				this.#stderr,
 				passed,
 			);
-			if (this.#d.resolve(parseResult)) {
-			} else {
+			if (!this.#d.resolve(parseResult)) {
 				this.#opts?.observer.emit(
 					'internalError',
 					new Error(this.toString() + ' ._resolved() more than once'),

@@ -203,6 +203,7 @@ export function verifyOptions(
 		...opts,
 		passRE: toRe(opts.pass),
 		failRE: toRe(opts.fail),
+		onProcessExit: undefined
 	};
 
 	const errors: string[] = [];

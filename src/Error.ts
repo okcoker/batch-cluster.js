@@ -4,10 +4,10 @@ import { blank, toS } from './String.ts';
  * When we wrap errors, an Error always prefixes the toString() and stack with
  * "Error: ", so we can remove that prefix.
  */
-export function tryEach(arr: (() => void)[]): void {
+export async function tryEach(arr: (() => void)[]): Promise<void> {
 	for (const f of arr) {
 		try {
-			f();
+			await f();
 		} catch (_) {
 			//
 		}
