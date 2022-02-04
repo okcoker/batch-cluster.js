@@ -18,9 +18,6 @@ import {
 	parserErrors,
 	processFactory,
 	procs,
-	setFailrate,
-	setIgnoreExit,
-	setNewline,
 	sortNumeric,
 	testPids,
 	timekeeper as tk,
@@ -49,7 +46,7 @@ describe('BatchCluster', function () {
 		exitCommand: 'exit',
 		onIdleIntervalMillis: 250, // frequently to speed up tests
 		maxTasksPerProcess: 5, // force process churn
-		taskTimeoutMillis: 250, // CI machines can be slow. Needs to be short so the timeout test doesn't timeout
+		taskTimeoutMillis: 1250, // CI machines can be slow. Needs to be short so the timeout test doesn't timeout
 		maxReasonableProcessFailuresPerMinute: 2000, // this is so high because failrate is so high
 		minDelayBetweenSpawnMillis: 100,
 	};

@@ -5,5 +5,4 @@ export interface InternalBatchProcessOptions
 	extends BatchProcessOptions, BatchClusterOptions, WithObserver {
 	passRE: RegExp;
 	failRE: RegExp;
-	onProcessExit?: () => void
 }

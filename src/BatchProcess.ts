@@ -58,7 +58,7 @@ export class BatchProcess {
 		// https://github.com/denoland/deno/pull/12889/files
 		// this.proc.unref()
 
-		if (proc.pid == null) {
+		if (!proc.pid) {
 			throw new Error(
 				'BatchProcess.constructor: child process pid is null',
 			);
@@ -66,10 +66,10 @@ export class BatchProcess {
 		this.pid = proc.pid;
 
 		const stdin = this.proc.stdin;
-		if (stdin == null) throw new Error('Given proc had no stdin');
+		if (!stdin) throw new Error('Given proc had no stdin');
 
 		const stdout = this.proc.stdout;
-		if (stdout == null) throw new Error('Given proc had no stdout');
+		if (!stdout) throw new Error('Given proc had no stdout');
 
 		const startupTask = new Task(opts.versionCommand, SimpleParser);
 		this.startupTaskId = startupTask.taskId;
@@ -257,53 +257,74 @@ export class BatchProcess {
 	}
 
 	#listenForStdout() {
-		clearInterval(this.#stdoutTimer);
-		this.#stdoutTimer = setInterval(async () => {
+		console.log('clear timer listen', this.pid);
+		clearTimeout(this.#stdoutTimer);
+
+		void this.proc.status().then(async (status) => {
+			clearTimeout(this.#stdoutTimer);
+
+			try {
+				// console.log('this.#ending', this.#ending, this.pid);
+				if (status.code !== 0) {
+					const rawError = await this.proc.stderrOutput();
+					const err = new TextDecoder().decode(rawError);
+					// console.log('stderr', err);
+					console.log('err', this.pid, err);
+					this.#onStderr(err);
+					return;
+				}
+
+				// console.log('getting final output', this.pid);
+
+				// const output = new TextDecoder().decode(await this.proc.output());
+				// this.#onStdout(output);
+				// console.log('final output', output);
+			}
+			catch (err) {
+				this.#onError("stderr.error", new Error(`proc.error ${err}`));
+				return;
+			}
+
+			console.log('exit', this.pid);
+			this.#onExit("exit");
+		});
+
+		const listen = async () => {
 			try {
 				const buffered = new Uint8Array(512);
 				const length = await this.proc.stdout?.read(buffered);
 
+				console.log('output length', this.#currentTask?.command, length);
 				if (length) {
 					const output = new TextDecoder().decode(buffered.slice(0, length));
 					// console.log(output);
 					this.#onStdout(output);
 				}
 
-				const status = await this.proc.status();
-
-				// Not sure if this is expected or a Deno bug but
-				// status doesnt report anything until the process is
-				// killed or something
-				if (!status) {
-					return;
-				}
-
-				clearInterval(this.#stdoutTimer);
-
-				if (status.code !== 0) {
-					const rawError = await this.proc.stderrOutput();
-					const err = new TextDecoder().decode(rawError);
-					console.log('stderr', err);
-					this.#onStderr(err);
-					return;
-				}
-
-				this.#onExit("close");
+				console.log('listening', this.pid);
 			}
 			catch (err) {
-				console.log('err', err);
+				// console.log('err', err, this.pid);
 				this.#onError("stdout.error", new Error(`proc.error ${err}`));
 			}
-		}, 500);
+
+			this.#stdoutTimer = setTimeout(listen, 500);
+		};
+
+		this.#stdoutTimer = setTimeout(listen, 500);
 	}
 
 	#execTask(task: Task): boolean {
-		if (this.#ending) return false;
+		if (this.#ending) {
+			console.log('this.#ending', this.pid);
+			return false;
+		}
 
 		this.#taskCount++;
 		this.#currentTask = task;
 		const cmd = ensureSuffix(task.command, '\n');
 		const isStartupTask = task.taskId === this.startupTaskId;
+		console.log('isStartupTask', isStartupTask, task, this.pid);
 		const timeoutMs = isStartupTask
 			? this.opts.spawnTimeoutMillis
 			: this.opts.taskTimeoutMillis;
@@ -325,6 +346,7 @@ export class BatchProcess {
 				this.#clearCurrentTask(task);
 
 				if (!isStartupTask) {
+					console.log('runtime', task.runtimeMs);
 					this.opts.observer.emit('taskResolved', task, this);
 				}
 			},
@@ -344,18 +366,25 @@ export class BatchProcess {
 			const stdin = this.proc.stdin;
 
 			if (stdin === null) {
+				console.log('stdin null', this.pid);
 				task.reject(new Error('proc.stdin unexpectedly closed'));
 				return false;
 			}
 
+
 			this.#listenForStdout()
-			stdin.write(new TextEncoder().encode(cmd)).catch((err) => {
+			console.log('output length write', cmd, this.pid, task.toString());
+			void stdin.write(new TextEncoder().encode(cmd)).then((length) => {
+				console.log(task.toString(), this.pid, 'wrote bytes', length);
+			}).catch((err) => {
+				console.log('no write', this.pid);
 				task.reject(err);
 			});
 
 			return true;
 		} catch (err: any) {
 			// child process went away. We should too.
+			console.log('child proc went away', this.pid, err);
 			this.end(false, 'proc.stdin.write(cmd)');
 			return false;
 		}
@@ -370,6 +399,7 @@ export class BatchProcess {
 	 */
 	// NOT ASYNC! needs to change state immediately.
 	end(gracefully = true, source: string) {
+		console.log(this.pid, 'Ending from', source);
 		if (this.#ending) {
 			return Promise.resolve();
 		}
@@ -419,13 +449,17 @@ export class BatchProcess {
 		// proc cleanup:
 		await tryEach([
 			async () => {
-				await this.proc.stdin?.write(new TextEncoder().encode(cmd));
-				this.proc.stdin?.close()
+				await this.proc.stdin!.write(new TextEncoder().encode(cmd));
+				console.log('closing stdin', this.pid, this.proc.stdin);
+				this.proc.stdin!.close()
 			},
-			() => this.proc.stdout?.close(),
-			() => this.proc.stderr?.close(),
+			() => this.proc.stdout!.close(),
+			() => this.proc.stderr!.close(),
 			() => this.proc.close()
 		]);
+
+		console.log('cleanup', this.pid);
+
 		if (
 			this.opts.cleanupChildProcs &&
 			gracefully &&
@@ -456,7 +490,7 @@ export class BatchProcess {
 			);
 			await kill(this.proc.pid, true);
 		}
-		return this.#resolvedOnExit.then(() => this.opts.onProcessExit?.());
+		return this.#resolvedOnExit;
 	}
 
 	#awaitNotRunning(timeout: number) {
@@ -475,6 +509,7 @@ export class BatchProcess {
 	}
 
 	#onError(source: string, _error: Error, task?: Task) {
+		console.log(task?.toString(), 'onError', source, _error);
 		if (this.#ending) {
 			// We're ending already, so don't propagate the error.
 			// This is expected due to race conditions stdin EPIPE and process shutdown.
@@ -542,6 +577,7 @@ export class BatchProcess {
 		const task = this.#currentTask;
 
 		if (task && task.pending) {
+			console.log('task pending stderr', this.pid);
 			task.onStderr(data);
 		} else if (!this.#ending) {
 			this.end(false, 'onStderr (no current task)');
@@ -563,6 +599,8 @@ export class BatchProcess {
 	#onStdout(data: string) {
 		// logger().debug("onStdout(" + this.pid + "):" + data)
 		const task = this.#currentTask;
+
+		console.log('stdout', task?.toString(), 'pending', task?.pending);
 		if (task && task.pending) {
 			this.opts.observer.emit('taskData', data, task, this);
 			task.onStdout(data);
@@ -583,7 +621,9 @@ export class BatchProcess {
 	#clearCurrentTask(task?: Task) {
 		setImmediate(() => this.opts.observer.emit('idle'));
 		if (task && task.taskId !== this.#currentTask?.taskId) return;
+		console.log((task ?? this.#currentTask)?.toString(), 'clearing timeout');
 		clearTimeout(this.#currentTaskTimeout);
+		// clearTimeout(this.#stdoutTimer);
 		this.#currentTaskTimeout = undefined;
 		this.#currentTask = undefined;
 		this.#lastJobFinshedAt = Date.now();

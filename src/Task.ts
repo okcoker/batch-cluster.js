@@ -91,6 +91,7 @@ export class Task<T = any> {
 	onStdout(output: string | Uint8Array): void {
 		this.#stdout += this.getStringFromChunk(output);
 		const passRE = this.#opts?.passRE;
+		console.log('task.onStdout passed:', !!passRE?.exec(this.#stdout), passRE, this.#stdout);
 		if (passRE && passRE.exec(this.#stdout)) {
 			// remove the pass token from stdout:
 			this.#stdout = this.#stdout.replace(passRE, '');
@@ -108,6 +109,7 @@ export class Task<T = any> {
 	onStderr(err: string | Uint8Array): void {
 		this.#stderr += this.getStringFromChunk(err);
 		const failRE = this.#opts?.failRE;
+		console.log('stderr', this.#stderr);
 		if (failRE && failRE.exec(this.#stderr)) {
 			// remove the fail token from stderr:
 			this.#stderr = this.#stderr.replace(failRE, '');
@@ -136,6 +138,7 @@ export class Task<T = any> {
 		// })
 
 		// wait for stderr and stdout to flush:
+		// @todo check if we need this to be false in deno
 		await delay(this.#opts?.streamFlushMillis ?? 10, true);
 
 		// we're expecting this method may be called concurrently (if there are both
