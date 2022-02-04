@@ -305,7 +305,8 @@ export class BatchProcess {
 			}
 			catch (err) {
 				// console.log('err', err, this.pid);
-				this.#onError("stdout.error", new Error(`proc.error ${err}`));
+				this.#onError("stdout.error", new Error(`proc.error(${this.pid}) ${err}`));
+				return;
 			}
 
 			this.#stdoutTimer = setTimeout(listen, 500);
