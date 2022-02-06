@@ -55,10 +55,10 @@ export const parser: Parser<string> = (
 	stderr: string | undefined,
 	passed: boolean,
 ) => {
-	// console.log(stdout, stderr, passed);
-	if (stderr != null) {
+	if (typeof stderr === 'string') {
 		parserErrors.push(stderr);
 	}
+
 	if (!passed || notBlank(stderr)) {
 		logger().debug('test parser: rejecting task', {
 			stdout,

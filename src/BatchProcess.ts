@@ -45,6 +45,7 @@ export class BatchProcess {
 	#currentTaskTimeout: number | undefined;
 
 	#stdoutTimer: number | undefined;
+	#stderrTimer: number | undefined;
 
 	constructor(
 		readonly proc: Deno.Process,
@@ -226,7 +227,7 @@ export class BatchProcess {
 	execTask(task: Task): boolean {
 		const why = this.whyNotReady;
 		if (why) {
-			console.log(`execTask(): ${this.pid} not ready: ${why}`)
+			console.log(`${this.pid} execTask() not ready: ${why}`)
 			return false;
 		}
 
@@ -240,84 +241,137 @@ export class BatchProcess {
 			const t = new Task(this.opts.healthCheckCommand, SimpleParser);
 			t.promise
 				.catch((err) => {
-					console.log("execTask#" + this.pid + ": health check failed", err)
+					console.log(this.pid, "execTask#: health check failed", err)
 					this.opts.observer.emit('healthCheckError', err, this);
 					this.#healthCheckFailures++;
 				})
 				.finally(() => {
 					this.#lastHealthCheck = Date.now();
 				});
-			console.log('Running healthcheck', this.pid);
+			console.log(this.pid, 'Running healthcheck');
 			this.#execTask(t);
 			return false;
 		}
 
-		console.log("running " + task + " on " + this.pid)
+		console.log(this.pid, "running " + task)
 		return this.#execTask(task);
 	}
 
-	#listenForStdout() {
-		console.log('clear timer listen', this.pid);
+	#listenForStdio() {
+		console.log(this.pid,'listening for stdio');
 		clearTimeout(this.#stdoutTimer);
+		clearTimeout(this.#stderrTimer);
 
-		void this.proc.status().then(async (status) => {
+		void this.proc.status().then((status) => {
 			clearTimeout(this.#stdoutTimer);
+			clearTimeout(this.#stderrTimer);
 
-			try {
-				// console.log('this.#ending', this.#ending, this.pid);
-				if (status.code !== 0) {
-					const rawError = await this.proc.stderrOutput();
-					const err = new TextDecoder().decode(rawError);
-					// console.log('stderr', err);
-					console.log('err', this.pid, err);
-					this.#onStderr(err);
-					return;
-				}
+			// if (this.#ending) {
+			// 	return;
+			// }
 
-				// console.log('getting final output', this.pid);
+			// try {
+			// 	console.log(status);
+			// 	// console.log(this.pid, 'this.#ending', this.#ending);
+			// 	// if (status.code !== 0) {
+			// 	const rawError = await this.proc.stderrOutput();
+			// 	const err = new TextDecoder().decode(rawError);
+			// 	// console.log('stderr', err);
+			// 	if (err) {
+			// 		console.log(this.pid, 'stderr after status', err);
+			// 		this.#onStderr(err);
+			// 		return;
+			// 	}
+			// 	// }
 
-				// const output = new TextDecoder().decode(await this.proc.output());
-				// this.#onStdout(output);
-				// console.log('final output', output);
-			}
-			catch (err) {
-				this.#onError("stderr.error", new Error(`proc.error ${err}`));
+			// 	// console.log(this.pid, 'getting final output');
+
+			// 	// const output = new TextDecoder().decode(await this.proc.output());
+			// 	// this.#onStdout(output);
+			// 	// console.log('final output', output);
+			// }
+			// catch (err) {
+			// 	console.trace(this.pid, err);
+			// 	this.#onError("stderr.error", new Error(`proc.error(${this.pid}) ${err}`));
+			// 	return;
+			// }
+
+			if (status.code !== 0) {
+				console.log(this.pid, '#onError', status);
+				this.#onError("proc status err", new Error(`proc.error(${this.pid}) code: ${status.code} ${status.signal ? `status: ${status.signal}` : ''}`));
 				return;
 			}
 
-			console.log('exit', this.pid);
+			console.log(this.pid, '#onExit', status);
 			this.#onExit("exit");
 		});
 
-		const listen = async () => {
+		// Listening for stderr and stdout chunks separately
+		// because we don't want one io to await/hold up the other
+		const listenStdout = async () => {
+			if (this.#ending) {
+				clearTimeout(this.#stdoutTimer);
+				return;
+			}
+
 			try {
 				const buffered = new Uint8Array(512);
 				const length = await this.proc.stdout?.read(buffered);
 
-				console.log('output length', this.#currentTask?.command, length);
+				console.log(this.pid, 'stdout output length', this.#currentTask?.command, length);
 				if (length) {
 					const output = new TextDecoder().decode(buffered.slice(0, length));
 					// console.log(output);
 					this.#onStdout(output);
 				}
 
-				console.log('listening', this.pid);
+				console.log(this.pid, 'listening stdout');
 			}
-			catch (err) {
-				// console.log('err', err, this.pid);
+			catch(err) {
+				console.trace(this.pid, err);
+				console.log(this.pid, 'listen err', err);
 				this.#onError("stdout.error", new Error(`proc.error(${this.pid}) ${err}`));
 				return;
 			}
 
-			this.#stdoutTimer = setTimeout(listen, 500);
+			this.#stdoutTimer = setTimeout(listenStdout, 500);
 		};
 
-		this.#stdoutTimer = setTimeout(listen, 500);
+		const listenStderr = async () => {
+			if (this.#ending) {
+				clearTimeout(this.#stderrTimer);
+				return;
+			}
+
+			try {
+				const buffered = new Uint8Array(512);
+				const length = await this.proc.stderr?.read(buffered);
+
+				console.log(this.pid, 'stderr output length', this.#currentTask?.command, length);
+				if (length) {
+					const output = new TextDecoder().decode(buffered.slice(0, length));
+					this.#onStderr(output);
+				}
+
+				console.log(this.pid, 'listening stderr');
+			}
+			catch(err) {
+				console.trace(this.pid, err);
+				console.log(this.pid, 'listen err', err);
+				this.#onError("stderr.error", new Error(`proc.error(${this.pid}) ${err}`));
+				return;
+			}
+
+			this.#stderrTimer = setTimeout(listenStderr, 500);
+		};
+
+		listenStdout();
+		listenStderr();
 	}
 
 	#execTask(task: Task): boolean {
 		if (this.#ending) {
-			console.log('this.#ending', this.pid);
+			console.log(this.pid, 'this.#ending');
 			return false;
 		}
 
@@ -325,7 +379,7 @@ export class BatchProcess {
 		this.#currentTask = task;
 		const cmd = ensureSuffix(task.command, '\n');
 		const isStartupTask = task.taskId === this.startupTaskId;
-		console.log('isStartupTask', isStartupTask, task, this.pid);
+		console.log(this.pid, 'isStartupTask', isStartupTask, task);
 		const timeoutMs = isStartupTask
 			? this.opts.spawnTimeoutMillis
 			: this.opts.taskTimeoutMillis;
@@ -347,7 +401,7 @@ export class BatchProcess {
 				this.#clearCurrentTask(task);
 
 				if (!isStartupTask) {
-					console.log('runtime', task.runtimeMs);
+					console.log(this.pid, 'runtime', task.toString(), task.runtimeMs);
 					this.opts.observer.emit('taskResolved', task, this);
 				}
 			},
@@ -367,25 +421,25 @@ export class BatchProcess {
 			const stdin = this.proc.stdin;
 
 			if (stdin === null) {
-				console.log('stdin null', this.pid);
+				console.log(this.pid, 'stdin null');
 				task.reject(new Error('proc.stdin unexpectedly closed'));
 				return false;
 			}
 
 
-			this.#listenForStdout()
-			console.log('output length write', cmd, this.pid, task.toString());
+			this.#listenForStdio()
+			console.log(this.pid, 'output length write', task.toString(), cmd);
 			void stdin.write(new TextEncoder().encode(cmd)).then((length) => {
-				console.log(task.toString(), this.pid, 'wrote bytes', length);
+				console.log(this.pid, task.toString(), 'wrote bytes', length);
 			}).catch((err) => {
-				console.log('no write', this.pid);
+				console.log(this.pid, 'no write');
 				task.reject(err);
 			});
 
 			return true;
 		} catch (err: any) {
 			// child process went away. We should too.
-			console.log('child proc went away', this.pid, err);
+			console.log(this.pid, 'child proc went away', err);
 			this.end(false, 'proc.stdin.write(cmd)');
 			return false;
 		}
@@ -411,6 +465,21 @@ export class BatchProcess {
 	// NOTE: Must only be invoked by this.end(), and only expected to be invoked
 	// once per instance.
 	async #end(gracefully = true, source: string): Promise<void> {
+		// try {
+		// 	// Try to get stderr before closing
+		// 	const rawError = await this.proc.stderrOutput();
+		// 	const err = new TextDecoder().decode(rawError);
+		// 	// console.log('stderr', err);
+		// 	if (err) {
+		// 		console.log(this.pid, 'stderr contents', err);
+		// 		this.#onStderr(err);
+		// 	}
+		// }
+		// catch(err) {
+		// 	console.log(this.pid, 'stderrOutput err:', err);
+		// 	// i dont think we care about this error here
+		// }
+
 		const lastTask = this.#currentTask;
 		this.#clearCurrentTask();
 
@@ -447,6 +516,7 @@ export class BatchProcess {
 
 		const cmd = map(this.opts.exitCommand, (ea) => ensureSuffix(ea, '\n'));
 
+		console.log(this.pid, 'cleaning');
 		// proc cleanup:
 		await tryEach([
 			async () => {
@@ -459,7 +529,6 @@ export class BatchProcess {
 			() => this.proc.close()
 		]);
 
-		console.log('cleanup', this.pid);
 
 		if (
 			this.opts.cleanupChildProcs &&
@@ -510,7 +579,12 @@ export class BatchProcess {
 	}
 
 	#onError(source: string, _error: Error, task?: Task) {
-		console.log(task?.toString(), 'onError', source, _error);
+		if (task) {
+			console.log(this.pid, task.toString(), '#onError', source, _error);
+		}
+		else {
+			console.log(this.pid, '#onError', source, _error);
+		}
 		if (this.#ending) {
 			// We're ending already, so don't propagate the error.
 			// This is expected due to race conditions stdin EPIPE and process shutdown.
@@ -573,12 +647,14 @@ export class BatchProcess {
 	#onStderr(data: string) {
 		if (blank(data)) return;
 
+		console.log(this.pid, '#onStderr');
+
 		this.#logger().info('onStderr(' + this.pid + '):' + data);
 
 		const task = this.#currentTask;
 
 		if (task && task.pending) {
-			console.log('task pending stderr', this.pid);
+			console.log(this.pid, 'task pending stderr');
 			task.onStderr(data);
 		} else if (!this.#ending) {
 			this.end(false, 'onStderr (no current task)');
@@ -601,7 +677,7 @@ export class BatchProcess {
 		// logger().debug("onStdout(" + this.pid + "):" + data)
 		const task = this.#currentTask;
 
-		console.log('stdout', task?.toString(), 'pending', task?.pending);
+		console.log(this.pid, '#onStdout', task?.toString(), 'pending', task?.pending);
 		if (task && task.pending) {
 			this.opts.observer.emit('taskData', data, task, this);
 			task.onStdout(data);
@@ -622,9 +698,8 @@ export class BatchProcess {
 	#clearCurrentTask(task?: Task) {
 		setImmediate(() => this.opts.observer.emit('idle'));
 		if (task && task.taskId !== this.#currentTask?.taskId) return;
-		console.log((task ?? this.#currentTask)?.toString(), 'clearing timeout');
+		console.log(this.pid, (task ?? this.#currentTask)?.toString(), 'clearing timeout');
 		clearTimeout(this.#currentTaskTimeout);
-		// clearTimeout(this.#stdoutTimer);
 		this.#currentTaskTimeout = undefined;
 		this.#currentTask = undefined;
 		this.#lastJobFinshedAt = Date.now();

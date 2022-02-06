@@ -65,7 +65,7 @@ export class Task<T = any> {
 	}
 
 	get runtimeMs() {
-		return this.#startedAt == null
+		return !this.#startedAt
 			? undefined
 			: (this.#settledAt ?? Date.now()) - this.#startedAt;
 	}
