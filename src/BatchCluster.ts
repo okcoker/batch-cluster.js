@@ -15,7 +15,7 @@ import { Deferred } from './Deferred.ts';
 import { asError } from './Error.ts';
 import { Logger } from './Logger.ts';
 import { Mean } from './Mean.ts';
-import { fromEntries, map } from './Object.ts';
+import { fromEntries } from './Object.ts';
 import { Parser } from './Parser.ts';
 import { Rate } from './Rate.ts';
 import { Task } from './Task.ts';
@@ -184,9 +184,9 @@ export class BatchCluster {
 	 * attempted on an idle BatchProcess
 	 */
 	enqueueTask<T>(task: Task<T>): Promise<T> {
-		console.log('enqueue', task.command);
+		this.#logger().debug(`enqueue command: ${task.command}`);
 		if (this.ended) {
-			console.log('batch cluster ended');
+			this.#logger().debug('batch cluster ended');
 			task.reject(
 				new Error(
 					'BatchCluster has ended, cannot enqueue ' + task.command,
@@ -362,7 +362,7 @@ export class BatchCluster {
 					why,
 					1 + this.countEndedChildProcs(why),
 				);
-				console.log('ending proc in vacuum', proc.pid, why);
+				this.#logger().debug(`${proc.pid} ending proc in vacuum. reason: ${why}`);
 				void proc.end(true, why);
 			}
 
@@ -432,7 +432,7 @@ export class BatchCluster {
 			const proc = new BatchProcess(child, this.options);
 
 			if (this.ended) {
-				console.log('ending proc right away', proc.pid);
+				this.#logger().debug(`${proc.pid} ending proc right away`);
 				void proc.end(false, 'ended');
 				return;
 			}
@@ -453,7 +453,7 @@ export class BatchCluster {
 			}
 
 			if (this.#procs.length >= this.options.maxProcs) {
-				console.log('ending proc, hit max procs', proc.pid);
+				this.#logger().debug(`${proc.pid} ending proc, hit max procs`);
 				void proc.end(false, 'maxProcs');
 				return;
 			}

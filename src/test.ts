@@ -35,7 +35,7 @@ async function onLine(line: string): Promise<void> {
 	if (r < failrate) {
 		if (Deno.env.get('unluckyfail') === '1') {
 			// Make sure streams get debounced:
-			await write('FAIL');
+			write('FAIL');
 			await delay(1);
 		}
 		console.error(
@@ -60,7 +60,7 @@ async function onLine(line: string): Promise<void> {
 		switch (firstToken) {
 			case 'flaky': {
 				const flakeRate = toF(tokens.shift()) ?? failrate;
-				await write(
+				write(
 					'flaky response (' +
 						(r < flakeRate ? 'FAIL' : 'PASS') +
 						', r: ' +
@@ -72,40 +72,40 @@ async function onLine(line: string): Promise<void> {
 						')',
 				);
 				if (r < flakeRate) {
-					await write('FAIL');
+					write('FAIL');
 				} else {
-					await write('PASS');
+					write('PASS');
 				}
 				break;
 			}
 
 			case 'upcase': {
-				await write(postToken.toUpperCase());
-				await write('PASS');
+				write(postToken.toUpperCase());
+				write('PASS');
 				break;
 			}
 			case 'downcase': {
-				await write(postToken.toLowerCase());
-				await write('PASS');
+				write(postToken.toLowerCase());
+				write('PASS');
 				break;
 			}
 			case 'sleep': {
 				const millis = parseInt(tokens[0] ?? '100');
 				await delay(millis);
-				await write(JSON.stringify({ slept: millis, pid: Deno.pid }));
-				await write('PASS');
+				write(JSON.stringify({ slept: millis, pid: Deno.pid }));
+				write('PASS');
 				break;
 			}
 
 			case 'version': {
-				await write('v1.2.3');
-				await write('PASS');
+				write('v1.2.3');
+				write('PASS');
 				break;
 			}
 
 			case 'exit': {
 				if (ignoreExit) {
-					await write('ignoreExit is set');
+					write('ignoreExit is set');
 				} else {
 					Deno.exit(0);
 				}
@@ -114,24 +114,24 @@ async function onLine(line: string): Promise<void> {
 			case 'stderr': {
 				// force stdout to be emitted before stderr, and exercise stream
 				// debouncing:
-				await write('PASS');
+				write('PASS');
 				await delay(1);
 				console.error('Error: ' + postToken);
 				break;
 			}
 			default: {
 				console.error('invalid or missing command for input', line);
-				await write('FAIL');
+				write('FAIL');
 			}
 		}
 	} catch (err) {
 		console.error('Error: ' + err);
-		await write('FAIL');
+		write('FAIL');
 	}
 }
 
 for await (const line of readLines(Deno.stdin)) {
-	// await write(`Line: "${line}"`);
+	// write(`Line: "${line}"`);
 	// The default delimeter in split2 https://www.npmjs.com/package/split2
 	// line.split(/\r?\n/).filter(Boolean).map((splitLine) => {
 	// 	m.serial(() => onLine(splitLine))

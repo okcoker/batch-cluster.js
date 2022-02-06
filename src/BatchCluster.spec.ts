@@ -36,7 +36,9 @@ describe('BatchCluster', function () {
 	}
 
 	const ErrorPrefix = 'ERROR: ';
-
+	// Small values are not really working on my laptop.
+	// Not sure if this is a Deno limitation?
+	const safeTaskTimeout = 1250;
 	const DefaultOpts = {
 		...new BatchClusterOptions(),
 		maxProcs: 4, // < force concurrency
@@ -46,7 +48,7 @@ describe('BatchCluster', function () {
 		exitCommand: 'exit',
 		onIdleIntervalMillis: 250, // frequently to speed up tests
 		maxTasksPerProcess: 5, // force process churn
-		taskTimeoutMillis: 1250, // CI machines can be slow. Needs to be short so the timeout test doesn't timeout
+		taskTimeoutMillis: safeTaskTimeout, // CI machines can be slow. Needs to be short so the timeout test doesn't timeout
 		maxReasonableProcessFailuresPerMinute: 2000, // this is so high because failrate is so high
 		minDelayBetweenSpawnMillis: 100,
 	};
@@ -235,8 +237,10 @@ describe('BatchCluster', function () {
 		bc.off('idle', listener);
 		bc.emitter.emit('idle');
 		expect(emitTimes).to.eql([]);
+		await bc.end();
 		postAssertions();
 	});
+
 
 	for (const newline of newlines) {
 		for (const maxProcs of [1, 4]) {
@@ -262,12 +266,13 @@ describe('BatchCluster', function () {
 							// retries to succeed.
 
 							beforeEach(function () {
-								setNewline(newline as any);
-								setIgnoreExit(ignoreExit);
 								bc = listen(
 									new BatchCluster({
 										...opts,
-										processFactory,
+										processFactory: () => processFactory({
+											newline: newline as "lf" | "crlf",
+											ignoreExit: ignoreExit
+										}),
 									}),
 								);
 								procs.length = 0;
@@ -276,7 +281,6 @@ describe('BatchCluster', function () {
 							afterEach(async () => {
 								await shutdown(bc);
 								expect(bc.internalErrorCount).to.eql(0);
-								return;
 							});
 
 							it('calling .end() when new no-ops', async () => {
@@ -296,8 +300,13 @@ describe('BatchCluster', function () {
 								// This just warms up bc to make child procs:
 								const iterations = maxProcs *
 									(bc.options.maxTasksPerProcess + 1);
-								setFailrate(25); // 25%
 
+								// @ts-ignore make it easier to override options for test
+								bc.options.processFactory = () => processFactory({
+									newline: newline as "lf" | "crlf",
+									ignoreExit: ignoreExit,
+									failrate: 25 // 25%
+								})
 								const tasks = await Promise.all(
 									runTasks(bc, iterations),
 								);
@@ -326,8 +335,13 @@ describe('BatchCluster', function () {
 								async function () {
 									// @todo check on this later
 									// this.retries(2) // because we're flaky...
-									// make sure we hit an EUNLUCKY:
-									setFailrate(60); // 60%
+									// @ts-ignore make it easier to override options for test
+									bc.options.processFactory = () => processFactory({
+										newline: newline as "lf" | "crlf",
+										ignoreExit: ignoreExit,
+										// make sure we hit an EUNLUCKY:
+										failrate: 60 // 60%
+									})
 									let expectedResultCount = 0;
 									const results = await Promise.all(
 										runTasks(bc, maxProcs),
@@ -492,7 +506,12 @@ describe('BatchCluster', function () {
 							});
 
 							it('accepts single and multi-line responses', async () => {
-								setFailrate(0);
+								// @ts-ignore make it easier to override options for test
+								bc.options.processFactory = () => processFactory({
+									newline: newline as "lf" | "crlf",
+									ignoreExit: ignoreExit,
+									failrate: 0
+								})
 								const expected: string[] = [];
 								const results = await Promise.all(
 									times(15, (idx) => {
@@ -560,7 +579,7 @@ describe('BatchCluster', function () {
 								);
 								postAssertions();
 							});
-						},
+						}
 					);
 				}
 			}
@@ -602,14 +621,15 @@ describe('BatchCluster', function () {
 					{ minDelayBetweenSpawnMillis },
 				),
 				async function () {
-					setFailrate(0);
 					const opts = {
 						...DefaultOpts,
 						taskTimeoutMillis: sleepTimeMs * 4, // < don't test timeouts here
 						maxProcs,
 						maxTasksPerProcess: expectedTaskMax + 5, // < don't recycle procs for this test
 						minDelayBetweenSpawnMillis,
-						processFactory,
+						processFactory: () => processFactory({
+							failrate: 0
+						})
 					};
 					bc = listen(new BatchCluster(opts));
 					expect(bc.isIdle).to.eql(true);
@@ -665,14 +685,15 @@ describe('BatchCluster', function () {
 		afterEach(() => shutdown(bc));
 
 		it('supports reducing maxProcs', async () => {
-			setFailrate(0);
 			const opts = {
 				...DefaultOpts,
 				minDelayBetweenSpawnMillis: 10,
 				taskTimeoutMillis: sleepTimeMs * 4, // < don't test timeouts here
 				maxProcs,
 				maxTasksPerProcess: 100, // < don't recycle procs for this test
-				processFactory,
+				processFactory: () => processFactory({
+					failrate: 0
+				})
 			};
 			bc = new BatchCluster(opts);
 			const firstBatchPromises: Promise<string>[] = [];
@@ -819,21 +840,21 @@ describe('BatchCluster', function () {
 			it('(' + maxProcAgeMillis + '): ' + ctx, async function () {
 				// TODO: look into why this fails in CI on windows
 				if (isWin && isCI) {
-					// @todo we probably shouldnt be skipping
 					// return this.skip()
 					return;
 				}
 				const start = Date.now();
 				tk.freeze(start);
-				setFailrate(0);
 
 				bc = listen(
 					new BatchCluster({
 						...DefaultOpts,
 						maxProcs: 1,
 						maxProcAgeMillis,
-						spawnTimeoutMillis: Math.max(maxProcAgeMillis, 200),
-						processFactory,
+						spawnTimeoutMillis: Math.max(maxProcAgeMillis, safeTaskTimeout),
+						processFactory: () => processFactory({
+							failrate: 0
+						})
 					}),
 				);
 				assertExpectedResults(await Promise.all(runTasks(bc, 2)));

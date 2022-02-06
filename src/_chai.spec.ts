@@ -2,7 +2,8 @@ import { expect, use } from 'https://cdn.skypack.dev/chai@4.3.4?dts';
 import * as timekeeper from 'https://cdn.skypack.dev/timekeeper@2.2.0?dts';
 import { default as chaiString } from 'https://cdn.skypack.dev/chai-string@1.5.0?dts';
 // This is causing issues with vscode deno extension
-// import { default as chaiAsPromised } from 'https://cdn.skypack.dev/chai-as-promised@7.1.1?dts';
+// https://github.com/denoland/deno/issues/13611
+import { default as chaiAsPromised } from 'https://cdn.skypack.dev/chai-as-promised@7.1.1?dts';
 import { default as chaiWithinTolerance } from 'https://cdn.skypack.dev/chai-withintoleranceof@1.0.1?dts';
 import {
 	afterAll,
@@ -23,7 +24,7 @@ import { notBlank } from './String.ts';
 const __dirname = path.dirname(path.fromFileUrl(import.meta.url));
 
 use(chaiString);
-// use(chaiAsPromised);
+use(chaiAsPromised);
 use(chaiWithinTolerance);
 
 // Tests should be quiet unless LOG is set
