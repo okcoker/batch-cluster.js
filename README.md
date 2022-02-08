@@ -10,9 +10,12 @@ This is a Deno fork of [batch-cluster](https://github.com/photostructure/batch-c
 ```
 deno test --allow-all --unstable src/*.spec.ts
 ```
+
+Not all tests are passing yet.
 ## Notes
 
 - Child processes aren't event emitters in Deno
 - Calling `SIGKILL` on a process won't actually kill the pid until you check `process.status()` (see tests)
 - Updated `Harness` class in tests to accept process env as an argument. This removes the need for global values that might be shared if tests run in parallel
 - Listening for signals inside the subprocess (`ie Deno.addSignalListener("SIGINT", handler)`) started by `Deno.run()` fail which seem to differ from Node's `child_process`.
+- Right now a buffer is used to read stdout/stderr but maybe the buffer size should be configurable?
