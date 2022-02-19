@@ -225,9 +225,10 @@ export class BatchProcess {
 	// This must not be async, or new instances aren't started as busy (until the
 	// startup task is complete)
 	execTask(task: Task): boolean {
+		this.#logger().debug(`${this.name} executing task`);
 		const why = this.whyNotReady;
 		if (why) {
-			this.#logger().debug(`${this.pid} execTask() not ready: ${why}`)
+			this.#logger().debug(`${this.name} execTask() not ready: ${why}`)
 			return false;
 		}
 
@@ -242,24 +243,24 @@ export class BatchProcess {
 			const t = new Task(this.opts.healthCheckCommand, SimpleParser);
 			t.promise
 				.catch((err) => {
-					this.#logger().debug(`${this.pid} execTask#: health check failed ${err}`)
+					this.#logger().debug(`${this.name} execTask#: health check failed ${err}`)
 					this.opts.observer.emit('healthCheckError', err, this);
 					this.#healthCheckFailures++;
 				})
 				.finally(() => {
 					this.#lastHealthCheck = Date.now();
 				});
-			this.#logger().debug(`${this.pid} Running healthcheck`);
+			this.#logger().debug(`${this.name} Running healthcheck`);
 			this.#execTask(t);
 			return false;
 		}
 
-		this.#logger().debug(`${this.pid} running ${task}`);
+		this.#logger().debug(`${this.name} running ${task}`);
 		return this.#execTask(task);
 	}
 
 	#listenForStdio() {
-		this.#logger().debug(`${this.pid} listening for stdio`);
+		this.#logger().debug(`${this.name} listening for stdio`);
 		clearTimeout(this.#stdoutTimer);
 		clearTimeout(this.#stderrTimer);
 
@@ -268,12 +269,12 @@ export class BatchProcess {
 			clearTimeout(this.#stderrTimer);
 
 			if (status.code !== 0) {
-				this.#logger().debug(`${this.pid} #onError ${status}`);
+				this.#logger().debug(`${this.name} #onError ${status}`);
 				this.#onError("proc status err", new Error(`proc.error(${this.pid}) code: ${status.code} ${status.signal ? `status: ${status.signal}` : ''}`));
 				return;
 			}
 
-			this.#logger().debug(`${this.pid} #onExit ${status}`);
+			this.#logger().debug(`${this.name} #onExit ${JSON.stringify(status)}`);
 			this.#onExit("exit");
 		});
 
@@ -289,13 +290,13 @@ export class BatchProcess {
 				const buffered = new Uint8Array(512);
 				const length = await this.proc.stdout?.read(buffered);
 
-				this.#logger().debug(`${this.pid} stdout output length ${this.#currentTask?.command} ${length}`);
 				if (length) {
 					const output = new TextDecoder().decode(buffered.slice(0, length));
+					this.#logger().debug(`${this.name} ${this.#currentTask?.toString()} stdout: ${output}`);
 					this.#onStdout(output);
 				}
 
-				this.#logger().debug(`${this.pid} listening stdout`);
+				this.#logger().debug(`${this.name} listening stdout`);
 			}
 			catch(err) {
 				this.#logger().debug(`${this.pid} listen err ${err}`);
@@ -316,13 +317,13 @@ export class BatchProcess {
 				const buffered = new Uint8Array(512);
 				const length = await this.proc.stderr?.read(buffered);
 
-				this.#logger().debug(`${this.pid} stderr output length ${this.#currentTask?.command} ${length}`);
 				if (length) {
 					const output = new TextDecoder().decode(buffered.slice(0, length));
+					this.#logger().debug(`${this.name} ${this.#currentTask?.toString()} stderr: ${output}`);
 					this.#onStderr(output);
 				}
 
-				this.#logger().debug(`${this.pid} listening stderr`);
+				this.#logger().debug(`${this.name} listening stderr`);
 			}
 			catch(err) {
 				this.#logger().debug(`${this.pid} listen err ${err}`);
@@ -339,7 +340,7 @@ export class BatchProcess {
 
 	#execTask(task: Task): boolean {
 		if (this.#ending) {
-			this.#logger().debug(`${this.pid} this.#ending`);
+			this.#logger().debug(`${this.name} this.#ending`);
 			return false;
 		}
 
@@ -347,11 +348,12 @@ export class BatchProcess {
 		this.#currentTask = task;
 		const cmd = ensureSuffix(task.command, '\n');
 		const isStartupTask = task.taskId === this.startupTaskId;
-		this.#logger().debug(`${this.pid} isStartupTask ${isStartupTask} ${task}`);
+		this.#logger().debug(`${this.name} isStartupTask ${isStartupTask} ${task}`);
 		const timeoutMs = isStartupTask
 			? this.opts.spawnTimeoutMillis
 			: this.opts.taskTimeoutMillis;
 		if (timeoutMs > 0) {
+			// console.log(`${this.name} setting timer ${task.toString()}`);
 			// logger().trace(this.name + ".execTask(): scheduling timeout", {
 			//   command: task.command,
 			//   timeoutMs,
@@ -369,13 +371,14 @@ export class BatchProcess {
 				this.#clearCurrentTask(task);
 
 				if (!isStartupTask) {
-					this.#logger().debug(`${this.pid} runtime ${task.toString()} ${task.runtimeMs}`);
+					// console.log(`${this.name} task.prom.then ${task.toString()} ${task.runtimeMs}`);
+					this.#logger().debug(`${this.name} ${task.toString()} runtime: ${task.runtimeMs}`);
 					this.opts.observer.emit('taskResolved', task, this);
 				}
 			},
 			(err) => {
 				this.#clearCurrentTask(task);
-
+				// console.log(`${this.name} TASK.prom.err ${task.toString()} runtime ${task.runtimeMs} err ${err}`);
 				if (isStartupTask) {
 					this.opts.observer.emit('startError', err);
 				} else {
@@ -385,29 +388,30 @@ export class BatchProcess {
 		);
 
 		try {
+			this.#logger().debug(`${this.name} ${task.toString()} starting task`);
 			task.onStart(this.opts);
 			const stdin = this.proc.stdin;
 
 			if (stdin === null) {
-				this.#logger().debug(`${this.pid} stdin null`);
+				this.#logger().debug(`${this.name} stdin null`);
 				task.reject(new Error('proc.stdin unexpectedly closed'));
 				return false;
 			}
 
 
 			this.#listenForStdio()
-			this.#logger().debug(`${this.pid} output length write ${task.toString()} ${cmd}`);
+			this.#logger().debug(`${this.name} output length write ${task.toString()} ${cmd}`);
 			void stdin.write(new TextEncoder().encode(cmd)).then((length) => {
-				this.#logger().debug(`${this.pid} ${task.toString()} wrote bytes ${length}`);
+				this.#logger().debug(`${this.name} ${task.toString()} wrote bytes ${length}`);
 			}).catch((err) => {
-				this.#logger().debug(`${this.pid} no write`);
+				this.#logger().debug(`${this.name} no write`);
 				task.reject(err);
 			});
 
 			return true;
 		} catch (err: any) {
 			// child process went away. We should too.
-			this.#logger().debug(`${this.pid} child proc went away ${err}`);
+			this.#logger().debug(`${this.name} child proc went away ${err}`);
 			this.end(false, 'proc.stdin.write(cmd)');
 			return false;
 		}
@@ -422,7 +426,7 @@ export class BatchProcess {
 	 */
 	// NOT ASYNC! needs to change state immediately.
 	end(gracefully = true, source: string) {
-		this.#logger().debug(`${this.pid} Ending from ${source}`);
+		this.#logger().debug(`${this.name} Ending from ${source}`);
 		if (this.#ending) {
 			return Promise.resolve();
 		}
@@ -469,17 +473,33 @@ export class BatchProcess {
 
 		const cmd = map(this.opts.exitCommand, (ea) => ensureSuffix(ea, '\n'));
 
-		this.#logger().debug(`${this.pid} cleaning`);
+		this.#logger().debug(`${this.name} cleaning`);
 		// proc cleanup:
 		await tryEach([
 			async () => {
+				if (cmd) {
+					this.#logger().debug(`${this.name} running exit command ${cmd}`);
+				}
 				await this.proc.stdin!.write(new TextEncoder().encode(cmd));
-				this.#logger().debug(`${this.pid} closing stdin ${this.proc.stdin}`);
+				this.#logger().debug(`${this.name} closing stdin`);
 				this.proc.stdin!.close()
 			},
-			() => this.proc.stdout!.close(),
-			() => this.proc.stderr!.close(),
-			() => this.proc.close()
+			async () => {
+				this.#logger().debug(`${this.name} getting last proc status`);
+				await this.proc.status();
+			},
+			() => {
+				this.#logger().debug(`${this.name} closing stdout`);
+				this.proc.stdout!.close();
+			},
+			() => {
+				this.#logger().debug(`${this.name} closing stderr`);
+				this.proc.stderr!.close();
+			},
+			() => {
+				this.#logger().debug(`${this.name} closing proc`);
+				this.proc.close();
+			}
 		]);
 
 
@@ -532,12 +552,12 @@ export class BatchProcess {
 	}
 
 	#onError(source: string, _error: Error, task?: Task) {
-		if (task) {
-			this.#logger().debug(`${this.pid} ${task.toString()} #onError ${source} ${_error}`);
-		}
-		else {
-			this.#logger().debug(`${this.pid} #onError ${source} ${_error}`);
-		}
+		this.#logger().debug(`${this.name} #onError`, {
+			source,
+			_error,
+			task,
+		});
+
 		if (this.#ending) {
 			// We're ending already, so don't propagate the error.
 			// This is expected due to race conditions stdin EPIPE and process shutdown.
@@ -600,14 +620,14 @@ export class BatchProcess {
 	#onStderr(data: string) {
 		if (blank(data)) return;
 
-		this.#logger().debug(`${this.pid} #onStderr`);
+		this.#logger().debug(`${this.name} #onStderr`);
 
 		this.#logger().info('onStderr(' + this.pid + '):' + data);
 
 		const task = this.#currentTask;
 
 		if (task && task.pending) {
-			this.#logger().debug(`${this.pid} task pending stderr`);
+			this.#logger().debug(`${this.name} task pending stderr`);
 			task.onStderr(data);
 		} else if (!this.#ending) {
 			this.end(false, 'onStderr (no current task)');
@@ -630,7 +650,7 @@ export class BatchProcess {
 		// logger().debug("onStdout(" + this.pid + "):" + data)
 		const task = this.#currentTask;
 
-		this.#logger().debug(`${this.pid} #onStdout ${task?.toString()} pending ${task?.pending}`);
+		this.#logger().debug(`${this.name} #onStdout ${task?.toString()} pending ${task?.pending}`);
 		if (task && task.pending) {
 			this.opts.observer.emit('taskData', data, task, this);
 			task.onStdout(data);
@@ -649,9 +669,11 @@ export class BatchProcess {
 	}
 
 	#clearCurrentTask(task?: Task) {
+		// console.log(this.pid, 'clearing attempt task', task?.toString(), 'current task', this.#currentTask?.toString());
 		setImmediate(() => this.opts.observer.emit('idle'));
 		if (task && task.taskId !== this.#currentTask?.taskId) return;
-		this.#logger().debug(`${this.pid} ${(task ?? this.#currentTask)?.toString()} clearing timeout`);
+		// console.log(`${this.name} ${(task ?? this.#currentTask)?.toString()} clearing timeout success`);
+		this.#logger().debug(`${this.name} ${(task ?? this.#currentTask)?.toString() || ''} clearing timeout`);
 		clearTimeout(this.#currentTaskTimeout);
 		this.#currentTaskTimeout = undefined;
 		this.#currentTask = undefined;

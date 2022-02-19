@@ -195,7 +195,10 @@ export class BatchCluster {
 		}
 		this.#tasks.push(task);
 		setImmediate(() => this.onIdle());
-		return task.promise.finally(() => this.onIdle());
+		return task.promise.then((data) => {
+			this.#logger().debug(`enqueue task finished: ${task.toString()}`);
+			return data;
+		}).finally(() => this.onIdle());
 	}
 
 	/**
