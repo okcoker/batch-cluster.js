@@ -281,11 +281,6 @@ export class BatchProcess {
 		// Listening for stderr and stdout chunks separately
 		// because we don't want one io to await/hold up the other
 		const listenStdout = async () => {
-			if (this.#ending) {
-				clearTimeout(this.#stdoutTimer);
-				return;
-			}
-
 			try {
 				const buffered = new Uint8Array(512);
 				const length = await this.proc.stdout?.read(buffered);
@@ -299,7 +294,12 @@ export class BatchProcess {
 				this.#logger().debug(`${this.name} listening stdout`);
 			}
 			catch(err) {
-				this.#logger().debug(`${this.pid} listen err ${err}`);
+				if (this.#ending) {
+					clearTimeout(this.#stdoutTimer);
+					return;
+				}
+
+				this.#logger().debug(`${this.name} listen err ${err}`);
 				this.#onError("stdout.error", new Error(`proc.error(${this.pid}) ${err}`));
 				return;
 			}
@@ -308,11 +308,6 @@ export class BatchProcess {
 		};
 
 		const listenStderr = async () => {
-			if (this.#ending) {
-				clearTimeout(this.#stderrTimer);
-				return;
-			}
-
 			try {
 				const buffered = new Uint8Array(512);
 				const length = await this.proc.stderr?.read(buffered);
@@ -326,7 +321,12 @@ export class BatchProcess {
 				this.#logger().debug(`${this.name} listening stderr`);
 			}
 			catch(err) {
-				this.#logger().debug(`${this.pid} listen err ${err}`);
+				if (this.#ending) {
+					clearTimeout(this.#stderrTimer);
+					return;
+				}
+
+				this.#logger().debug(`${this.name} listen err ${err}`);
 				this.#onError("stderr.error", new Error(`proc.error(${this.pid}) ${err}`));
 				return;
 			}
