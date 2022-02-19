@@ -497,6 +497,7 @@ describe('BatchCluster', function () {
 									'sleep ' + (opts.taskTimeoutMillis + 250), // < make sure it times out
 									parser,
 								);
+								expectedTaskCount++;
 								await expect(
 									bc.enqueueTask(task),
 								).to.eventually.be.rejectedWith(
@@ -550,6 +551,7 @@ describe('BatchCluster', function () {
 								let error: Error | undefined;
 								let result = '';
 								try {
+									expectedTaskCount++;
 									result = await bc.enqueueTask(task);
 								} catch (err: any) {
 									error = err;
@@ -569,6 +571,7 @@ describe('BatchCluster', function () {
 								let error: Error | undefined;
 								let result = '';
 								try {
+									expectedTaskCount++;
 									result = await bc.enqueueTask(task);
 								} catch (err: any) {
 									error = err;
