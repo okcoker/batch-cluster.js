@@ -1,8 +1,8 @@
 export function delay(millis: number, unref = false): Promise<void> {
-	return new Promise<void>((resolve) => {
-		const t = setTimeout(resolve, millis);
-		if (unref) Deno.unrefTimer(t)
-	});
+    return new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, millis);
+        if (unref) Deno.unrefTimer(t);
+    });
 }
 
 /**
@@ -10,30 +10,30 @@ export function delay(millis: number, unref = false): Promise<void> {
  * passes.
  */
 export async function until(
-	f: (count: number) => boolean | Promise<boolean>,
-	timeoutMs: number,
-	delayMs = 200,
+    f: (count: number) => boolean | Promise<boolean>,
+    timeoutMs: number,
+    delayMs = 200,
 ): Promise<boolean> {
-	const timeoutAt = Date.now() + timeoutMs;
-	let count = 0;
-	let timer = 0;
+    const timeoutAt = Date.now() + timeoutMs;
+    let count = 0;
+    let timer = 0;
 
-	return await new Promise((resolve) => {
-		timer = setInterval(async () => {
-			if (Date.now() < timeoutAt) {
-				if (await f(count)) {
-					clearInterval(timer);
-					resolve(true);
-				} else {
-					count++;
-				}
-				return;
-			}
+    return await new Promise((resolve) => {
+        timer = setInterval(async () => {
+            if (Date.now() < timeoutAt) {
+                if (await f(count)) {
+                    clearInterval(timer);
+                    resolve(true);
+                } else {
+                    count++;
+                }
+                return;
+            }
 
-			clearInterval(timer);
-			resolve(false);
-		}, delayMs);
-	})
+            clearInterval(timer);
+            resolve(false);
+        }, delayMs);
+    });
 }
 
 /**
@@ -42,16 +42,16 @@ export async function until(
  * underlying thunk to be called (mostly useful for tests)
  */
 export function ratelimit<T>(
-	f: () => T,
-	minDelayMs: number,
+    f: () => T,
+    minDelayMs: number,
 ): () => T | undefined {
-	let next = 0;
-	return (force?: boolean) => {
-		if (Date.now() > next || force === true) {
-			next = Date.now() + minDelayMs;
-			return f();
-		} else {
-			return;
-		}
-	};
+    let next = 0;
+    return (force?: boolean) => {
+        if (Date.now() > next || force === true) {
+            next = Date.now() + minDelayMs;
+            return f();
+        } else {
+            return;
+        }
+    };
 }

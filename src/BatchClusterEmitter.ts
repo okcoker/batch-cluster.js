@@ -7,24 +7,24 @@ type Args<T> = T extends (...args: infer A) => void ? A : never;
 // EventEmitter has a bunch of other methods, but batch-cluster doesn't use
 // them, so I didn't bother to type them here.
 export interface TypedEventEmitter<T> {
-	once<E extends keyof T>(
-		eventName: E,
-		listener: (...args: Args<T[E]>) => void,
-	): this;
-	on<E extends keyof T>(
-		eventName: E,
-		listener: (...args: Args<T[E]>) => void,
-	): this;
-	off<E extends keyof T>(
-		eventName: E,
-		listener: (...args: Args<T[E]>) => void,
-	): this;
-	emit<E extends keyof T>(eventName: E, ...args: Args<T[E]>): boolean;
+    once<E extends keyof T>(
+        eventName: E,
+        listener: (...args: Args<T[E]>) => void,
+    ): this;
+    on<E extends keyof T>(
+        eventName: E,
+        listener: (...args: Args<T[E]>) => void,
+    ): this;
+    off<E extends keyof T>(
+        eventName: E,
+        listener: (...args: Args<T[E]>) => void,
+    ): this;
+    emit<E extends keyof T>(eventName: E, ...args: Args<T[E]>): boolean;
 
-	// eslint-disable-next-line @typescript-eslint/ban-types
-	listeners<E extends keyof T>(event: E): Function[];
+    // eslint-disable-next-line @typescript-eslint/ban-types
+    listeners<E extends keyof T>(event: E): Function[];
 
-	removeAllListeners(eventName?: keyof T): this;
+    removeAllListeners(eventName?: keyof T): this;
 }
 
 /**
@@ -34,77 +34,77 @@ export interface TypedEventEmitter<T> {
  * See {@link BatchClusterEmitter} for more details.
  */
 export interface BatchClusterEvents {
-	/**
-	 * Emitted when a child process has started
-	 */
-	childStart: (childProcess: Deno.Process) => void;
+    /**
+     * Emitted when a child process has started
+     */
+    childStart: (childProcess: Deno.Process) => void;
 
-	/**
-	 * Emitted when a child process has exitted
-	 */
-	childExit: (childProcess: Deno.Process) => void;
+    /**
+     * Emitted when a child process has exitted
+     */
+    childExit: (childProcess: Deno.Process) => void;
 
-	/**
-	 * Emitted when a child process has an error when spawning
-	 */
-	startError: (err: Error) => void;
+    /**
+     * Emitted when a child process has an error when spawning
+     */
+    startError: (err: Error) => void;
 
-	/**
-	 * Emitted when an internal consistency check fails
-	 */
-	internalError: (err: Error) => void;
+    /**
+     * Emitted when an internal consistency check fails
+     */
+    internalError: (err: Error) => void;
 
-	/**
-	 * Emitted when tasks receive data, which may be partial chunks from the task
-	 * stream.
-	 */
-	taskData: (
-		data: Uint8Array | string,
-		task: Task | undefined,
-		proc: BatchProcess,
-	) => void;
+    /**
+     * Emitted when tasks receive data, which may be partial chunks from the task
+     * stream.
+     */
+    taskData: (
+        data: Uint8Array | string,
+        task: Task | undefined,
+        proc: BatchProcess,
+    ) => void;
 
-	/**
-	 * Emitted when a task has been resolved
-	 */
-	taskResolved: (task: Task, proc: BatchProcess) => void;
+    /**
+     * Emitted when a task has been resolved
+     */
+    taskResolved: (task: Task, proc: BatchProcess) => void;
 
-	/**
-	 * Emitted when a task times out. Note that a `taskError` event always succeeds these events.
-	 */
-	taskTimeout: (timeoutMs: number, task: Task, proc: BatchProcess) => void;
+    /**
+     * Emitted when a task times out. Note that a `taskError` event always succeeds these events.
+     */
+    taskTimeout: (timeoutMs: number, task: Task, proc: BatchProcess) => void;
 
-	/**
-	 * Emitted when a task has an error
-	 */
-	taskError: (err: Error, task: Task, proc: BatchProcess) => void;
+    /**
+     * Emitted when a task has an error
+     */
+    taskError: (err: Error, task: Task, proc: BatchProcess) => void;
 
-	/**
-	 * Emitted when a process fails health checks
-	 */
-	healthCheckError: (err: Error, proc: BatchProcess) => void;
+    /**
+     * Emitted when a process fails health checks
+     */
+    healthCheckError: (err: Error, proc: BatchProcess) => void;
 
-	/**
-	 * Emitted when a child process has an error during shutdown
-	 */
-	endError: (err: Error) => void;
+    /**
+     * Emitted when a child process has an error during shutdown
+     */
+    endError: (err: Error) => void;
 
-	/**
-	 * Emitted when this instance is in the process of ending.
-	 */
-	beforeEnd: () => void;
+    /**
+     * Emitted when this instance is in the process of ending.
+     */
+    beforeEnd: () => void;
 
-	/**
-	 * Emitted when a task is completed, asking for more work to be scheduled, if
-	 * possible.
-	 */
-	idle: () => void;
+    /**
+     * Emitted when a task is completed, asking for more work to be scheduled, if
+     * possible.
+     */
+    idle: () => void;
 
-	/**
-	 * Emitted when this instance has ended. No child processes should remain at
-	 * this point.
-	 */
-	end: () => void;
+    /**
+     * Emitted when this instance has ended. No child processes should remain at
+     * this point.
+     */
+    end: () => void;
 }
 
 /**

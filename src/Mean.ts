@@ -1,36 +1,36 @@
 export class Mean {
-	private _n: number;
-	private _min?: number = undefined;
-	private _max?: number = undefined;
+    private _n: number;
+    private _min?: number = undefined;
+    private _max?: number = undefined;
 
-	constructor(n = 0, private sum = 0) {
-		this._n = n;
-	}
+    constructor(n = 0, private sum = 0) {
+        this._n = n;
+    }
 
-	push(x: number): void {
-		this._n++;
-		this.sum += x;
-		this._min = this._min == null || this._min > x ? x : this._min;
-		this._max = this._max == null || this._max < x ? x : this._max;
-	}
+    push(x: number): void {
+        this._n++;
+        this.sum += x;
+        this._min = this._min == null || this._min > x ? x : this._min;
+        this._max = this._max == null || this._max < x ? x : this._max;
+    }
 
-	get n(): number {
-		return this._n;
-	}
+    get n(): number {
+        return this._n;
+    }
 
-	get min(): number | undefined {
-		return this._min;
-	}
+    get min(): number | undefined {
+        return this._min;
+    }
 
-	get max(): number | undefined {
-		return this._max;
-	}
+    get max(): number | undefined {
+        return this._max;
+    }
 
-	get mean(): number {
-		return this.sum / this.n;
-	}
+    get mean(): number {
+        return this.sum / this.n;
+    }
 
-	clone(): Mean {
-		return new Mean(this.n, this.sum);
-	}
+    clone(): Mean {
+        return new Mean(this.n, this.sum);
+    }
 }

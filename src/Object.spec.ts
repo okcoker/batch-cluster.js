@@ -2,23 +2,23 @@ import { describe, expect, it } from './_chai.spec.ts';
 import { map } from './Object.ts';
 
 describe('Object', () => {
-	describe('map()', () => {
-		it('skips if target is null', () => {
-			expect(
-				map(null, () => {
-					throw new Error('unexpected');
-				}),
-			).to.eql(undefined);
-		});
-		it('skips if target is undefined', () => {
-			expect(
-				map(undefined, () => {
-					throw new Error('unexpected');
-				}),
-			).to.eql(undefined);
-		});
-		it('passes defined target to f', () => {
-			expect(map(123, (ea) => String(ea))).to.eql('123');
-		});
-	});
+    describe('map()', () => {
+        it('skips if target is null', () => {
+            expect(
+                map(null, () => {
+                    throw new Error('unexpected');
+                }),
+            ).to.eql(undefined);
+        });
+        it('skips if target is undefined', () => {
+            expect(
+                map(undefined, () => {
+                    throw new Error('unexpected');
+                }),
+            ).to.eql(undefined);
+        });
+        it('passes defined target to f', () => {
+            expect(map(123, (ea) => String(ea))).to.eql('123');
+        });
+    });
 });
