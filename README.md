@@ -11,7 +11,7 @@ This is a Deno fork of [batch-cluster](https://github.com/photostructure/batch-c
 deno test --allow-all --unstable src/*.spec.ts
 ```
 
-Not all tests are passing yet.
+A couple of the tests are failing in test.spec.ts
 ## Notes
 
 - Child processes aren't event emitters in Deno
