@@ -231,6 +231,9 @@ export function verifyOptions(
 	gte('taskTimeoutMillis', 10);
 	gte('maxTasksPerProcess', 1);
 
+	gte('stdoutBuffer', 1);
+	gte('stderrBuffer', 1);
+
 	gte('maxProcs', 1);
 	if (opts.maxProcAgeMillis !== 0) {
 		gte(

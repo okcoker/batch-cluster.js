@@ -40,4 +40,14 @@ export interface BatchProcessOptions {
 	 * SIGHUP'ed.
 	 */
 	exitCommand?: string | undefined;
+
+	/**
+	 * Amount of bytes to allocate when reading stdout chunks
+	 */
+	stdoutBuffer?: number | undefined;
+
+	/**
+	 * Amount of bytes to allocate when reading stderr chunks
+	 */
+	stderrBuffer?: number | undefined;
 }

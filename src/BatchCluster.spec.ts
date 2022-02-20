@@ -45,6 +45,8 @@ describe('BatchCluster', function () {
 		versionCommand: 'version',
 		pass: 'PASS',
 		fail: 'FAIL',
+		stdoutBuffer: 512,
+		stderrBuffer: 512,
 		exitCommand: 'exit',
 		onIdleIntervalMillis: 250, // frequently to speed up tests
 		maxTasksPerProcess: 5, // force process churn

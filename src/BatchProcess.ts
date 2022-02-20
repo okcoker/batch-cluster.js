@@ -282,7 +282,7 @@ export class BatchProcess {
 		// because we don't want one io to await/hold up the other
 		const listenStdout = async () => {
 			try {
-				const buffered = new Uint8Array(512);
+				const buffered = new Uint8Array(this.opts.stdoutBuffer ?? 512);
 				const length = await this.proc.stdout?.read(buffered);
 
 				if (length) {
@@ -309,7 +309,7 @@ export class BatchProcess {
 
 		const listenStderr = async () => {
 			try {
-				const buffered = new Uint8Array(512);
+				const buffered = new Uint8Array(this.opts.stderrBuffer ?? 512);
 				const length = await this.proc.stderr?.read(buffered);
 
 				if (length) {
@@ -533,6 +533,11 @@ export class BatchProcess {
 			);
 			await kill(this.proc.pid, true);
 		}
+
+		// Make sure async procs are cleaned out
+		// Noticed some leaking async ops within exiftool tests
+		clearTimeout(this.#stderrTimer);
+		clearTimeout(this.#stdoutTimer);
 		return this.#resolvedOnExit;
 	}
 
