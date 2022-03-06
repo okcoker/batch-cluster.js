@@ -184,7 +184,7 @@ export class BatchCluster {
      * attempted on an idle BatchProcess
      */
     enqueueTask<T>(task: Task<T>): Promise<T> {
-        this.#logger().debug(`enqueue command: ${task.command}`);
+        this.#logger().debug(`enqueue task: ${task.toString()}`);
         if (this.ended) {
             this.#logger().debug('batch cluster ended');
             task.reject(

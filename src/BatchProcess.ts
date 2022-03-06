@@ -262,37 +262,38 @@ export class BatchProcess {
     }
 
     #listenForStdio() {
-        this.#logger().debug(`${this.name} listening for stdio`);
         clearTimeout(this.#stdoutTimer);
         clearTimeout(this.#stderrTimer);
 
         void this.proc.status().then((status) => {
-            clearTimeout(this.#stdoutTimer);
-            clearTimeout(this.#stderrTimer);
+			clearTimeout(this.#stdoutTimer);
+			clearTimeout(this.#stderrTimer);
 
-            if (status.code !== 0) {
-                this.#logger().debug(`${this.name} #onError ${status}`);
-                this.#onError(
-                    'proc status err',
-                    new Error(
-                        `proc.error(${this.pid}) code: ${status.code} ${
-                            status.signal ? `status: ${status.signal}` : ''
-                        }`,
-                    ),
-                );
-                return;
-            }
+			if (status.code !== 0) {
+				this.#logger().debug(`${this.name} #onError ${status}`);
+				this.#onError(
+					'proc status err',
+					new Error(
+						`proc.error(${this.pid}) code: ${status.code} ${
+							status.signal ? `status: ${status.signal}` : ''
+						}`,
+					),
+				);
+				return;
+			}
 
-            this.#logger().debug(
-                `${this.name} #onExit ${JSON.stringify(status)}`,
-            );
-            this.#onExit('exit');
+			this.#logger().debug(
+				`${this.name} #onExit ${JSON.stringify(status)}`,
+			);
+			this.#onExit('exit');
         });
 
         // Listening for stderr and stdout chunks separately
         // because we don't want one io to await/hold up the other
         const listenStdout = async () => {
             try {
+				this.#logger().debug(`${this.name} listening stdout`);
+
                 const buffered = new Uint8Array(this.opts.stdoutBuffer ?? 512);
                 const length = await this.proc.stdout?.read(buffered);
 
@@ -307,8 +308,6 @@ export class BatchProcess {
                     );
                     this.#onStdout(output);
                 }
-
-                this.#logger().debug(`${this.name} listening stdout`);
             } catch (err) {
                 if (this.#ending) {
                     clearTimeout(this.#stdoutTimer);
@@ -328,6 +327,8 @@ export class BatchProcess {
 
         const listenStderr = async () => {
             try {
+				this.#logger().debug(`${this.name} listening stderr`);
+
                 const buffered = new Uint8Array(this.opts.stderrBuffer ?? 512);
                 const length = await this.proc.stderr?.read(buffered);
 
@@ -342,8 +343,6 @@ export class BatchProcess {
                     );
                     this.#onStderr(output);
                 }
-
-                this.#logger().debug(`${this.name} listening stderr`);
             } catch (err) {
                 if (this.#ending) {
                     clearTimeout(this.#stderrTimer);
@@ -509,7 +508,7 @@ export class BatchProcess {
 
         const cmd = map(this.opts.exitCommand, (ea) => ensureSuffix(ea, '\n'));
 
-        this.#logger().debug(`${this.name} cleaning`);
+        this.#logger().debug(`${this.name} proc cleanup`);
         // proc cleanup:
         await tryEach([
             async () => {
@@ -719,9 +718,9 @@ export class BatchProcess {
         if (task && task.taskId !== this.#currentTask?.taskId) return;
         // console.log(`${this.name} ${(task ?? this.#currentTask)?.toString()} clearing timeout success`);
         this.#logger().debug(
-            `${this.name} ${
+            `${this.name} clearing current task ${
                 (task ?? this.#currentTask)?.toString() || ''
-            } clearing timeout`,
+            }`,
         );
         clearTimeout(this.#currentTaskTimeout);
         this.#currentTaskTimeout = undefined;
